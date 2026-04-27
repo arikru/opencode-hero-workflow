@@ -47,6 +47,7 @@ Add to your project's `.claude/settings.json`:
 | Kanban breakdown | `/hero:hero-kanban` |
 | Architecture scan | `/hero:hero-improve-architecture` |
 | Code review | `/hero:hero-reviewer-standards` |
+| Dogfood | `/hero:hero-dogfood` |
 | PRD | `/hero:hero-to-prd` |
 
 ---
@@ -76,6 +77,7 @@ The day-shift loop is align then PRD then kanban then tdd then review. Each step
 | Command | What it does |
 | --- | --- |
 | `/grill <topic>` | Relentless interview about a plan until every branch of the decision tree is resolved. |
+| `/dogfood [seed]` | Exercise a feature as a real user — happy-path → adversarial → source read → HTML report. |
 | `/prd` | Synthesise the current context into a PRD and submit it as a GitHub issue. |
 | `/kanban [issue-number-or-url]` | Break a plan or PRD into independently-grabbable vertical-slice GitHub issues. |
 | `/pick-task` | Select the highest-priority unblocked `hero:ready` issue. |
@@ -85,6 +87,27 @@ The day-shift loop is align then PRD then kanban then tdd then review. Each step
 | `/architecture-scan` | Propose deep-module consolidations for shallow clusters. |
 | `/context-status` | Approximate token usage and smart-zone reminder. |
 | `/mark-issue-done` | Close the active issue with a completion comment. |
+
+## Dogfooding: /dogfood
+
+`/dogfood [seed]` loads the `hero-dogfood` skill and runs a structured session that exercises a feature or codebase as a real user would, then grounds every observation in source code, and emits an HTML report of findings.
+
+**Phases:**
+
+1. **Happy-path** — confirm the primary success scenario works end-to-end.
+2. **Adversarial** — probe edge cases, bad inputs, and failure modes systematically.
+3. **Source reading** — read the relevant source with the grounding of live probes to explain root causes.
+4. **Report** — emit a structured HTML report (rendered from `.opencode/skills/hero-dogfood/assets/report-template.html`) grouping findings by severity: `blocker`, `bug`, `friction`, `nit`.
+
+**Seed discovery** (in priority order): user-supplied seed → README/quickstart → existing test files → CLI `--help` / API surface scan. If the seed is ambiguous the agent states its scope and continues unless you object.
+
+**Safe mode (default):** only side-effect-free operations — reading files, running tests, calling pure functions, GET-style probes, throwaway temp directories. No mutations, no network writes.
+
+**Dangerous mode:** add `dangerous mode`, `allow side effects`, or `allow mutations` to the invocation. Destructive operations still require an explicit per-action confirmation before they run.
+
+The session continues adversarial probing until two consecutive probes yield no novel finding, or 20 total probes have been executed. Each finding is captured immediately in a structured YAML block (severity, what was tried, what happened, what was expected, evidence, suggested next step).
+
+---
 
 ## Night-shift: /ralph (AFK Sandcastle)
 

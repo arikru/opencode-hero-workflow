@@ -1,0 +1,24 @@
+{
+  "name": "opencode-hero-workflow",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "OpenCode workflow scaffold encoding Matt Pocock's Essential Skills for AI Coding.",
+  "bin": {
+    "hero-init": "./bin/init.js"
+  },
+  "scripts": {
+    "test": "bun test"
+  },
+  "files": [
+    "bin",
+    "plugin",
+    "scripts",
+    "sandcastle",
+    "templates",
+    "schemas"
+  ],
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.4.0"
+  }
+}

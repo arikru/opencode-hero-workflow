@@ -2,13 +2,13 @@
   "version": "0.1.0",
   "files": {
     ".hero/.hero-version": "e9dd8507f4bf0c6f42458e41aea833ad0bd3f6127272335eee9bf4d58541ed67",
-    ".hero/config.jsonc": "4ed6e23177d7cece0b24a9441e909a2eb9b096b0ef665c82e4faa91841aa64d3",
+    ".hero/config.jsonc": "dafa96b0973063bedd2879ea6c9c1f6b776ffe19400838a8c04acb522480f2e6",
     ".hero/state.json": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
     ".opencode/commands/.gitkeep": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     ".opencode/commands/architecture-scan.md": "580fce39b6d2b3a3d1ba3af7cf1b28b0fd284861ca97a5627990dd08ccf5a535",
     ".opencode/commands/context-status.md": "246d674f0922285e6a8a17090d06c86e0581b7e1e490abc5c9f214af609acce4",
     ".opencode/commands/dogfood.md": "b6649f997a51b25281c0885fa20326f11877e636be12446692ed76958760f5ed",
-    ".opencode/commands/grill.md": "9582ef8666b06d0921641ad211d0ea4c3a685f58ab8a208f4668055ab9eed965",
+    ".opencode/commands/grill.md": "3914989f398fc83e3fd163db801631beeaaee8876a47431ac6252aa764551428",
     ".opencode/commands/kanban.md": "06c2bd619508ab9a7f57bee23650e9e886debbf5267e7cd763bbd6c90c348a94",
     ".opencode/commands/mark-issue-done.md": "a50b731d142e137d72cf07617873b12e600dda8e3bef6e7c9b6c2493875b18d4",
     ".opencode/commands/pick-task.md": "48ff789bd21f4878cee45568e260007a05e931245ea4813175544615a2cdaf5e",
@@ -18,7 +18,9 @@
     ".opencode/commands/tdd.md": "006762c0bb099741a99ab704882138e2e3948e1abb8a2e06a34e51a80e727316",
     ".opencode/commands/verify.md": "a69aef6c10a1271bc309be6e65041ea38d42c209b091060eebe534548cbada87",
     ".opencode/skills/.gitkeep": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    ".opencode/skills/hero-dogfood/SKILL.md": "13c1df0d99014a0ce84aa72d8a7d798d6d5d58c464fac6152343255783841269",
+    ".opencode/skills/domain-model/ADR-FORMAT.md": "74943138d5b78dac6f6dae73f0c51d305b696d0084fd4ae147e90139438e89fc",
+    ".opencode/skills/domain-model/CONTEXT-FORMAT.md": "077c9c9c96de6a98e25555b9bcafdad16cc15f0e8fcc5a3f9a9699786ea1ea8a",
+    ".opencode/skills/hero-dogfood/SKILL.md": "21d134eb81507772ae606efc75486b62e6c87532d367ffec4e30d90d93db020a",
     ".opencode/skills/hero-dogfood/assets/report-template.html": "052cdecb562dc3e5d2f4c92caa11bf89776d96082177a046775d5bac15e27849",
     ".opencode/skills/hero-dogfood/scripts/render_report.py": "84e0c4c107c9b4bd7c028f6c78b6fe406fd57eacf4b664f06d01ddf83e24f9f9",
     ".opencode/skills/hero-dogfood/scripts/test_fixture.json": "92f7b8a1b65142e6291d79f558209b3ce9014cd71083fbfbac3f2b768fe8bc98",
@@ -35,6 +37,11 @@
     ".opencode/skills/hero-tdd-loop/mocking.md": "3ceb807fdf4a47d6a93d4d9a891e5ba6d362a6247bd08adc451feebfc17361ef",
     ".opencode/skills/hero-tdd-loop/refactoring.md": "54fced22dd1911b7094c3fe7979b7c1a40d40be307482c4adf7dc0588f27d6cc",
     ".opencode/skills/hero-tdd-loop/tests.md": "e12182f5c4c6a844b7c6ab4b8d2623b642aaaae5460fe58ed087efd4f3d5fb8a",
-    ".opencode/skills/hero-to-prd/SKILL.md": "8d3dcabf296bceb532076263389b1831c09d0917aa79f135508bfcf16a84dd6b"
+    ".opencode/skills/hero-to-prd/SKILL.md": "8d3dcabf296bceb532076263389b1831c09d0917aa79f135508bfcf16a84dd6b",
+    "scripts/generate-schema.ts": "e1d1e968cec534bc50b6f7020efb1fb27691134541f6aa0176e969c577f56c14",
+    "scripts/token-count.sh": "14e72eec75c1854d41e7f3c70cb101dc6e9fd056f2f5b5e5ab4c685117b35cb3",
+    "scripts/verify.sh": "6bed3cb1eb38ea61b3ec998c5a044cfe7762455ad82afa3e65353dab83cedf4a",
+    "scripts/verify/node.sh": "283defd35a029412a85b89490c4b1f8a66f24fda2056fe0dc36407bc42786ded",
+    "scripts/verify/python.sh": "fdfae992a9809c0efd3b51710d5850d524c4dcc3922b0a509d667874dd5302e2"
   }
 }

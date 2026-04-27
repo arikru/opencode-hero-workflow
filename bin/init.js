@@ -19,7 +19,7 @@ const TEMPLATES_DIR = join(PACKAGE_ROOT, "templates");
 const MANIFEST_REL = ".hero/.manifest.json";
 
 // Pinned git tag — the literal pin is the deliverable. No floating branch refs.
-const PLUGIN_REF = "github:org/opencode-hero-workflow#v0.1.0";
+const PLUGIN_REF = "github:arikru/opencode-hero-workflow#v0.1.0";
 
 const MODEL_ROLES = /** @type {const} */ ([
   { key: "implementer", label: "Implementer", example: "github-copilot/claude-sonnet-4.5" },

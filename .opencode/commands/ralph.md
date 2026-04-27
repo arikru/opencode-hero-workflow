@@ -6,9 +6,9 @@ You are starting a night-shift AFK run. The user is going to bed, so be thorough
 
 ## Pre-flight (do these in order, fail fast)
 
-1. **Sandcastle enabled?** Read `.hero/config.jsonc`. If `sandcastle.enabled` is not `true`, refuse with a one-liner: "Sandcastle is disabled in `.hero/config.jsonc`. Set `sandcastle.enabled: true` and re-run `bunx github:org/opencode-hero-workflow#<version> init` to scaffold the orchestrator." Stop.
+1. **Sandcastle enabled?** Read `.hero/config.jsonc`. If `sandcastle.enabled` is not `true`, refuse with a one-liner: "Sandcastle is disabled in `.hero/config.jsonc`. Set `sandcastle.enabled: true` and re-run `bunx hero-init` to scaffold the orchestrator." Stop.
 2. **Sandcastle binary present?** Run `!which sandcastle` (or `!command -v sandcastle`). If missing, refuse and tell the user to `bun add -g sandcastle` (or whatever the project's install path is). Stop.
-3. **Sandcastle main.ts scaffolded?** Check that `.sandcastle/main.ts` exists in the user's project. If missing, tell the user to run `bunx github:org/opencode-hero-workflow#<version> init` to scaffold it. Stop.
+3. **Sandcastle main.ts scaffolded?** Check that `.sandcastle/main.ts` exists in the user's project. If missing, tell the user to run `bunx hero-init` to scaffold it. Stop.
 4. **OpenCode auth present?** Run `!ls ~/.local/share/opencode 2>/dev/null` and confirm it returns a non-empty listing. If missing, tell the user to run `opencode auth login` first. Stop.
 5. **Issue board has work?** Run the `pick-next-issue` custom tool with the active config. If `found` is false, refuse with: "No `hero:ready` issues to process — the issue board is empty or fully blocked. Nothing to do." Stop.
 6. **Git working tree clean?** Run `!git status --porcelain`. If output is non-empty, ask the user to confirm — uncommitted work could be lost if a sandbox iteration touches the same files. Wait for explicit go-ahead before continuing.

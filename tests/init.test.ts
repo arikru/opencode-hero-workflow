@@ -13,7 +13,7 @@ import { join } from "node:path";
 
 const PACKAGE_ROOT = new URL("..", import.meta.url).pathname;
 const INIT_SCRIPT = join(PACKAGE_ROOT, "bin", "init.js");
-const PINNED_PLUGIN_REF = "github:org/opencode-hero-workflow#v0.1.0";
+const PINNED_PLUGIN_REF = "github:arikru/opencode-hero-workflow#v0.1.0";
 
 const PACKAGE_VERSION = JSON.parse(
   readFileSync(join(PACKAGE_ROOT, "package.json"), "utf8"),

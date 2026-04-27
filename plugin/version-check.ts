@@ -50,6 +50,6 @@ export async function checkVersionDrift(opts: {
   }
   const message =
     `Hero version drift: scaffold v${scaffolded}, package v${opts.packageVersion}. ` +
-    `Run \`bunx github:org/opencode-hero-workflow#v${opts.packageVersion} init --migrate\` to sync.`;
+    `Run \`bunx github:arikru/opencode-hero-workflow#v${opts.packageVersion} init --migrate\` to sync.`;
   await opts.toast.show({ message, severity: "warn" });
 }

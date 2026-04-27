@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dogfood Report — ${scope}</title>
+  <style>
+    /* ── Reset & tokens ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #f7f8fa;
+      --surface:   #ffffff;
+      --border:    #dde1e7;
+      --text:      #1a202c;
+      --text-muted:#718096;
+      --accent:    #3182ce;
+      --radius:    8px;
+      --shadow:    0 1px 4px rgba(0,0,0,.08);
+
+      --blocker:   #e53e3e;
+      --bug:       #dd6b20;
+      --friction:  #d69e2e;
+      --nit:       #a0aec0;
+
+      --safe-bg:   #c6f6d5;
+      --safe-fg:   #22543d;
+      --danger-bg: #fed7d7;
+      --danger-fg: #742a2a;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg:        #0d1117;
+        --surface:   #161b22;
+        --border:    #30363d;
+        --text:      #e6edf3;
+        --text-muted:#8b949e;
+        --accent:    #58a6ff;
+        --shadow:    0 1px 4px rgba(0,0,0,.4);
+
+        --blocker:   #f87171;
+        --bug:       #fb923c;
+        --friction:  #fbbf24;
+        --nit:       #9ca3af;
+
+        --safe-bg:   #064e3b;
+        --safe-fg:   #6ee7b7;
+        --danger-bg: #450a0a;
+        --danger-fg: #fca5a5;
+      }
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      padding: 2rem 1rem 4rem;
+    }
+
+    .container { max-width: 960px; margin: 0 auto; }
+
+    h1 { font-size: 1.75rem; font-weight: 700; margin-bottom: .25rem; }
+    h2 { font-size: 1.2rem; font-weight: 600; margin: 2rem 0 .75rem; border-bottom: 1px solid var(--border); padding-bottom: .4rem; }
+    h3 { font-size: 1rem; font-weight: 600; margin-bottom: .5rem; }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1rem;
+    }
+
+    /* ── Mode badge ── */
+    .mode-badge {
+      display: inline-block;
+      font-size: .95rem;
+      font-weight: 700;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      padding: .3rem .9rem;
+      border-radius: 999px;
+    }
+    .mode-safe    { background: var(--safe-bg);   color: var(--safe-fg); }
+    .mode-dangerous { background: var(--danger-bg); color: var(--danger-fg); }
+
+    /* ── Severity badges ── */
+    .sev {
+      display: inline-block;
+      font-size: .78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      padding: .15rem .55rem;
+      border-radius: 999px;
+      color: #fff;
+    }
+    .sev-blocker  { background: var(--blocker); }
+    .sev-bug      { background: var(--bug); }
+    .sev-friction { background: var(--friction); color: #1a202c; }
+    .sev-nit      { background: var(--nit);      color: #1a202c; }
+
+    /* ── Summary grid ── */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: .75rem;
+      margin-top: 1rem;
+    }
+    .summary-cell {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: .75rem 1rem;
+      text-align: center;
+    }
+    .summary-cell .count { font-size: 2rem; font-weight: 800; line-height: 1; }
+    .summary-cell .label { font-size: .8rem; color: var(--text-muted); margin-top: .2rem; }
+    .count-blocker  { color: var(--blocker); }
+    .count-bug      { color: var(--bug); }
+    .count-friction { color: var(--friction); }
+    .count-nit      { color: var(--nit); }
+
+    /* ── Top findings list ── */
+    .top-findings { list-style: none; margin-top: .5rem; }
+    .top-findings li { display: flex; align-items: baseline; gap: .5rem; padding: .35rem 0; border-bottom: 1px solid var(--border); }
+    .top-findings li:last-child { border-bottom: none; }
+
+    /* ── Phase sections ── */
+    .phase-section { margin-bottom: 1.5rem; }
+    .phase-tag {
+      font-size: .75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--accent);
+      margin-bottom: .5rem;
+    }
+
+    /* ── Sortable table ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .9rem;
+    }
+    th, td {
+      text-align: left;
+      padding: .6rem .9rem;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      background: var(--bg);
+      font-weight: 600;
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+    }
+    th:hover { color: var(--accent); }
+    th.sort-asc::after  { content: " ▲"; font-size: .7em; }
+    th.sort-desc::after { content: " ▼"; font-size: .7em; }
+    tr:last-child td { border-bottom: none; }
+    tbody tr:hover { background: var(--bg); }
+
+    /* ── Detail cards ── */
+    .finding-card { border-left: 4px solid var(--border); }
+    .finding-card.sev-blocker  { border-left-color: var(--blocker); }
+    .finding-card.sev-bug      { border-left-color: var(--bug); }
+    .finding-card.sev-friction { border-left-color: var(--friction); }
+    .finding-card.sev-nit      { border-left-color: var(--nit); }
+
+    .finding-meta { display: flex; gap: .5rem; align-items: center; margin-bottom: .75rem; flex-wrap: wrap; }
+
+    .field-label { font-size: .8rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin-top: .75rem; margin-bottom: .2rem; }
+    .field-value { color: var(--text); }
+
+    details { margin-top: .5rem; }
+    summary {
+      cursor: pointer;
+      font-size: .85rem;
+      font-weight: 600;
+      color: var(--accent);
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: .3rem;
+    }
+    summary::before { content: "▶"; font-size: .7em; transition: transform .15s; }
+    details[open] summary::before { transform: rotate(90deg); }
+
+    .evidence-block {
+      margin-top: .5rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: .75rem 1rem;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: .82rem;
+      overflow-x: auto;
+    }
+    .evidence-cmd { color: var(--accent); font-weight: 600; margin-bottom: .4rem; }
+    .evidence-output { white-space: pre-wrap; color: var(--text); opacity: .9; }
+    .evidence-refs { margin-top: .4rem; font-size: .78rem; color: var(--text-muted); }
+
+    .next-step {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: .6rem .9rem;
+      font-size: .9rem;
+      margin-top: .5rem;
+    }
+
+    .timestamp { font-size: .8rem; color: var(--text-muted); margin-top: .25rem; }
+
+    @media (max-width: 600px) {
+      .summary-grid { grid-template-columns: repeat(2, 1fr); }
+      table { font-size: .82rem; }
+      th, td { padding: .45rem .6rem; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- ── Header ── -->
+  <div class="card" style="margin-bottom:1.5rem">
+    <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+      <h1>Dogfood Report</h1>
+      <span class="mode-badge ${mode_class}">${mode}</span>
+    </div>
+    <div style="margin-top:.4rem;color:var(--text-muted)">Scope: <strong style="color:var(--text)">${scope}</strong></div>
+    <div class="timestamp">Generated: ${timestamp}</div>
+  </div>
+
+  <!-- ── Exec Summary ── -->
+  <h2>Executive Summary</h2>
+  <div class="card">
+    <div class="summary-grid">
+      <div class="summary-cell">
+        <div class="count count-blocker">${count_blocker}</div>
+        <div class="label">Blocker</div>
+      </div>
+      <div class="summary-cell">
+        <div class="count count-bug">${count_bug}</div>
+        <div class="label">Bug</div>
+      </div>
+      <div class="summary-cell">
+        <div class="count count-friction">${count_friction}</div>
+        <div class="label">Friction</div>
+      </div>
+      <div class="summary-cell">
+        <div class="count count-nit">${count_nit}</div>
+        <div class="label">Nit</div>
+      </div>
+    </div>
+
+    <h3 style="margin-top:1.25rem">Top Findings</h3>
+    <ul class="top-findings">
+${top_findings_html}
+    </ul>
+  </div>
+
+  <!-- ── Happy-path observations ── -->
+  <h2>Happy-Path Observations</h2>
+  <div class="phase-section">
+${happy_path_html}
+  </div>
+
+  <!-- ── Adversarial probes ── -->
+  <h2>Adversarial Probes</h2>
+  <div class="phase-section">
+${adversarial_html}
+  </div>
+
+  <!-- ── Source-grounded analysis ── -->
+  <h2>Source-Grounded Analysis</h2>
+  <div class="phase-section">
+${source_html}
+  </div>
+
+  <!-- ── Findings table ── -->
+  <h2>All Findings</h2>
+  <div class="card" style="padding:0;overflow:hidden">
+    <table id="findings-table">
+      <thead>
+        <tr>
+          <th data-col="0">#</th>
+          <th data-col="1">Severity</th>
+          <th data-col="2">Phase</th>
+          <th data-col="3">Title</th>
+        </tr>
+      </thead>
+      <tbody>
+${findings_table_rows}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── Per-finding detail cards ── -->
+  <h2>Finding Details</h2>
+${finding_cards_html}
+
+</div>
+
+<script>
+(function() {
+  var table = document.getElementById('findings-table');
+  if (!table) return;
+  var headers = table.querySelectorAll('th');
+  var tbody = table.querySelector('tbody');
+  var sortState = {col: -1, asc: true};
+
+  function cellText(row, col) {
+    var cells = row.querySelectorAll('td');
+    return cells[col] ? cells[col].textContent.trim().toLowerCase() : '';
+  }
+
+  headers.forEach(function(th) {
+    th.addEventListener('click', function() {
+      var col = parseInt(th.getAttribute('data-col'));
+      var asc = sortState.col === col ? !sortState.asc : true;
+      sortState = {col: col, asc: asc};
+
+      headers.forEach(function(h) { h.classList.remove('sort-asc', 'sort-desc'); });
+      th.classList.add(asc ? 'sort-asc' : 'sort-desc');
+
+      var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+      rows.sort(function(a, b) {
+        var av = cellText(a, col), bv = cellText(b, col);
+        if (av < bv) return asc ? -1 : 1;
+        if (av > bv) return asc ? 1 : -1;
+        return 0;
+      });
+      rows.forEach(function(r) { tbody.appendChild(r); });
+    });
+  });
+})();
+</script>
+</body>
+</html>

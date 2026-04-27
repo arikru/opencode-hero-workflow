@@ -74,16 +74,16 @@ describe("hero-init baseline scaffold", () => {
     expect(existsSync(join(tempDir, ".opencode", "commands"))).toBe(true);
   });
 
-  test("creates opencode.json with defaultMode plan and pinned plugin ref", () => {
+  test("creates opencode.json with default_agent plan and pinned plugin ref", () => {
     runInit(tempDir);
 
     const opencodePath = join(tempDir, "opencode.json");
     expect(existsSync(opencodePath)).toBe(true);
 
     const parsed = JSON.parse(readFileSync(opencodePath, "utf8"));
-    expect(parsed.defaultMode).toBe("plan");
-    expect(Array.isArray(parsed.plugins)).toBe(true);
-    expect(parsed.plugins).toContain(PINNED_PLUGIN_REF);
+    expect(parsed.default_agent).toBe("plan");
+    expect(Array.isArray(parsed.plugin)).toBe(true);
+    expect(parsed.plugin).toContain(PINNED_PLUGIN_REF);
   });
 
   test("merges into an existing opencode.json without dropping unrelated keys", () => {
@@ -98,8 +98,8 @@ describe("hero-init baseline scaffold", () => {
 
     const parsed = JSON.parse(readFileSync(opencodePath, "utf8"));
     expect(parsed.theme).toBe("tokyonight");
-    expect(parsed.defaultMode).toBe("plan");
-    expect(parsed.plugins).toContain(PINNED_PLUGIN_REF);
+    expect(parsed.default_agent).toBe("plan");
+    expect(parsed.plugin).toContain(PINNED_PLUGIN_REF);
   });
 });
 

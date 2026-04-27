@@ -1,0 +1,9 @@
+{
+  "name": "hero",
+  "description": "Hero workflow skills: TDD loop, grilling, kanban, architecture review, PR description, and more.",
+  "version": "0.1.0",
+  "author": {
+    "name": "arikru"
+  },
+  "repository": "https://github.com/arikru/opencode-hero-workflow"
+}

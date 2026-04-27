@@ -12,9 +12,44 @@ The split between day-shift and night-shift is deliberate. Day-shift is interact
 
 ## Install
 
+### OpenCode
+
 ```sh
 bunx github:arikru/opencode-hero-workflow#v0.1.0 init
 ```
+
+### Claude Code
+
+Hero skills are also available as a Claude Code plugin. This gives you the skills (`/hero:hero-grill`, `/hero:hero-tdd-loop`, etc.) but not the runtime hooks, verify loop, or token-budget toasts — those are OpenCode-only.
+
+**Install per session:**
+
+```sh
+claude --plugin-dir /path/to/opencode-hero-workflow/.opencode
+```
+
+**Install per project (via git):**
+
+Add to your project's `.claude/settings.json`:
+
+```json
+{
+  "plugins": ["gh:arikru/opencode-hero-workflow/.opencode"]
+}
+```
+
+**Available skills:**
+
+| Skill | Invocation |
+| --- | --- |
+| Grill / alignment | `/hero:hero-grill` |
+| TDD loop | `/hero:hero-tdd-loop` |
+| Kanban breakdown | `/hero:hero-kanban` |
+| Architecture scan | `/hero:hero-improve-architecture` |
+| Code review | `/hero:hero-reviewer-standards` |
+| PRD | `/hero:hero-to-prd` |
+
+---
 
 Pin an exact tag. The package resolves via Bun's git URL spec, and floating refs (branches, `main`, `latest`) are not supported — upgrades must be deliberate. The `init` flow prompts for the three model roles (`implementer`, `reviewer`, `planner`) so you can pick any OpenCode-supported provider, e.g. `github-copilot/claude-sonnet-4.5`. It then patches `opencode.json` to set `defaultMode: "plan"` and add the plugin reference, writes `.hero/config.jsonc` and `.hero/.hero-version`, and copies skills, commands, and scripts into place.
 
@@ -40,9 +75,9 @@ The day-shift loop is align then PRD then kanban then tdd then review. Each step
 
 | Command | What it does |
 | --- | --- |
-| `/grill <topic>` | One-question-at-a-time alignment session. |
-| `/prd` | Synthesise the alignment into `.hero/prds/<slug>.md`. |
-| `/kanban [prd-path]` | Decompose the PRD into vertical-slice GitHub issues with blockers. |
+| `/grill <topic>` | Relentless interview about a plan until every branch of the decision tree is resolved. |
+| `/prd` | Synthesise the current context into a PRD and submit it as a GitHub issue. |
+| `/kanban [issue-number-or-url]` | Break a plan or PRD into independently-grabbable vertical-slice GitHub issues. |
 | `/pick-task` | Select the highest-priority unblocked `hero:ready` issue. |
 | `/tdd <issue-number>` | Drive red-green-refactor on the chosen issue. |
 | `/verify` | Run the project's verify suite and interpret the result. |

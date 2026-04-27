@@ -1,0 +1,9 @@
+{
+  "$schema": "./node_modules/opencode-hero-workflow/schemas/hero-schema.json",
+  "version": "0.1.0",
+  "models": {
+    "implementer": "github-copilot/claude-sonnet-4.6",
+    "reviewer": "github-copilot/claude-sonnet-4.6",
+    "planner": "github-copilot/claude-sonnet-4.6"
+  }
+}

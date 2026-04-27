@@ -159,11 +159,11 @@ async function patchOpencodeJson(targetDir) {
   }
 
   const before = existed ? JSON.stringify(config) : null;
-  config.defaultMode = "plan";
+  config.default_agent = "plan";
 
   /** @type {string[]} */
   let plugins;
-  const existingPlugins = config.plugins;
+  const existingPlugins = config.plugin;
   if (Array.isArray(existingPlugins)) {
     plugins = existingPlugins.filter((p) => typeof p === "string");
   } else if (typeof existingPlugins === "string") {
@@ -174,7 +174,7 @@ async function patchOpencodeJson(targetDir) {
   if (!plugins.includes(PLUGIN_REF)) {
     plugins.push(PLUGIN_REF);
   }
-  config.plugins = plugins;
+  config.plugin = plugins;
 
   const after = JSON.stringify(config);
   if (existed && before === after) {

@@ -143,3 +143,10 @@ Re-run `bunx github:arikru/opencode-hero-workflow#vX.Y.Z init --migrate` to pull
 ## Contributing
 
 The package is developed using its own workflow. The day-shift slash commands work in this repo (`/grill`, `/prd`, `/kanban`, `/tdd`, `/verify`, `/review`), and `/ralph` is available if you set `sandcastle.enabled: true` in your local `.hero/config.jsonc`. Pull requests welcome through the standard GitHub PR flow.
+
+## Credits
+
+The workflow and skills in this scaffold are based on Matt Pocock's talk and transcript **"Essential Skills for AI Coding from Planning to Production"**:
+
+- Video: [https://www.youtube.com/watch?v=-QFHIoCo-Ko&list=PLgWBLnrVaSruEA5HL8Yw0MNRfVmiuDhgJ](https://www.youtube.com/watch?v=-QFHIoCo-Ko&list=PLgWBLnrVaSruEA5HL8Yw0MNRfVmiuDhgJ)
+- Transcript: [https://raw.githubusercontent.com/stewdotorg/ai-swe/main/matt-pocock-ai-coding-workflow-summary.md](https://raw.githubusercontent.com/stewdotorg/ai-swe/main/matt-pocock-ai-coding-workflow-summary.md)

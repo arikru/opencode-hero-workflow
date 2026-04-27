@@ -24,3 +24,13 @@ export interface ToolDecision {
 export type ToolExecuteBeforeHook = (
   event: ToolExecuteBeforeEvent,
 ) => ToolDecision | Promise<ToolDecision>;
+
+// Minimal mirror of OpenCode's toast surface (`tui.toast.show`). Hooks that
+// want to surface a user-visible message accept a `ToastApi` so tests can pass
+// in a spy without standing up the OpenCode runtime.
+export interface ToastApi {
+  show(opts: {
+    message: string;
+    severity?: "info" | "warn" | "error";
+  }): void | Promise<void>;
+}

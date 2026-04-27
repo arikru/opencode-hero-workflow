@@ -267,6 +267,63 @@ describe("hero-init idempotency and conflict detection", () => {
   });
 });
 
+describe("hero-init .hero/state.json placeholder", () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), "hero-init-state-"));
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  test("scaffolds an empty .hero/state.json on a fresh init", () => {
+    runInit(tempDir);
+
+    const statePath = join(tempDir, ".hero", "state.json");
+    expect(existsSync(statePath)).toBe(true);
+
+    const parsed = JSON.parse(readFileSync(statePath, "utf8"));
+    expect(parsed).toEqual({});
+  });
+
+  test("manifest tracks .hero/state.json after init", () => {
+    runInit(tempDir);
+
+    const manifestPath = join(tempDir, ".hero", ".manifest.json");
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    expect(manifest.files[".hero/state.json"]).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  test("refuses to overwrite a user-modified .hero/state.json without --force", () => {
+    runInit(tempDir);
+
+    const statePath = join(tempDir, ".hero", "state.json");
+    writeFileSync(statePath, `${JSON.stringify({ activeIssueId: "42" })}\n`, "utf8");
+
+    const result = runInitRaw([tempDir, ...modelFlags()]);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain(".hero/state.json");
+    expect(result.stderr).toContain("--force");
+
+    const onDisk = JSON.parse(readFileSync(statePath, "utf8"));
+    expect(onDisk).toEqual({ activeIssueId: "42" });
+  });
+
+  test("--force overwrites a user-modified .hero/state.json back to empty", () => {
+    runInit(tempDir);
+
+    const statePath = join(tempDir, ".hero", "state.json");
+    writeFileSync(statePath, `${JSON.stringify({ activeIssueId: "42" })}\n`, "utf8");
+
+    runInit(tempDir, ["--force"]);
+
+    const onDisk = JSON.parse(readFileSync(statePath, "utf8"));
+    expect(onDisk).toEqual({});
+  });
+});
+
 describe("hero-init sandcastle scaffolding", () => {
   let tempDir: string;
 

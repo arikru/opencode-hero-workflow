@@ -18,8 +18,23 @@ const PACKAGE_VERSION = JSON.parse(
   readFileSync(join(PACKAGE_ROOT, "package.json"), "utf8"),
 ).version as string;
 
+const DEFAULT_MODELS = {
+  implementer: "github-copilot/claude-sonnet-4.5",
+  reviewer: "github-copilot/claude-opus-4-7",
+  planner: "github-copilot/claude-sonnet-4.5",
+};
+
+function modelFlags(overrides: Partial<typeof DEFAULT_MODELS> = {}) {
+  const merged = { ...DEFAULT_MODELS, ...overrides };
+  return [
+    `--implementer=${merged.implementer}`,
+    `--reviewer=${merged.reviewer}`,
+    `--planner=${merged.planner}`,
+  ];
+}
+
 function runInit(targetDir: string, extraArgs: string[] = []) {
-  const result = spawnSync("bun", [INIT_SCRIPT, targetDir, ...extraArgs], {
+  const result = spawnSync("bun", [INIT_SCRIPT, targetDir, ...modelFlags(), ...extraArgs], {
     encoding: "utf8",
   });
   if (result.status !== 0) {
@@ -28,6 +43,10 @@ function runInit(targetDir: string, extraArgs: string[] = []) {
     );
   }
   return result;
+}
+
+function runInitRaw(args: string[]) {
+  return spawnSync("bun", [INIT_SCRIPT, ...args], { encoding: "utf8" });
 }
 
 describe("hero-init baseline scaffold", () => {
@@ -80,5 +99,52 @@ describe("hero-init baseline scaffold", () => {
     expect(parsed.theme).toBe("tokyonight");
     expect(parsed.defaultMode).toBe("plan");
     expect(parsed.plugins).toContain(PINNED_PLUGIN_REF);
+  });
+});
+
+describe("hero-init model-role prompts", () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), "hero-init-models-"));
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  test("writes model values from flags into .hero/config.jsonc and preserves version", () => {
+    runInit(tempDir);
+
+    const configPath = join(tempDir, ".hero", "config.jsonc");
+    const parsed = JSON.parse(readFileSync(configPath, "utf8"));
+
+    expect(parsed.version).toBe("0.1.0");
+    expect(parsed.models).toEqual(DEFAULT_MODELS);
+  });
+
+  test("uses exactly implementer, reviewer, planner under models", () => {
+    runInit(tempDir);
+
+    const parsed = JSON.parse(
+      readFileSync(join(tempDir, ".hero", "config.jsonc"), "utf8"),
+    );
+
+    expect(Object.keys(parsed.models).sort()).toEqual([
+      "implementer",
+      "planner",
+      "reviewer",
+    ]);
+  });
+
+  test("fails non-zero when a model flag is empty", () => {
+    const result = runInitRaw([
+      tempDir,
+      "--implementer=foo/bar",
+      "--reviewer=",
+      "--planner=baz/qux",
+    ]);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("reviewer");
   });
 });

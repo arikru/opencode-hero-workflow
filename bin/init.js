@@ -1,19 +1,22 @@
 #!/usr/bin/env bun
 // hero-init: scaffolds baseline opencode-hero-workflow files into a target project.
-// Scope: issues #1, #2. First-run scaffolding plus opencode.json patch plus model-role
-// prompts persisted to .hero/config.jsonc.
+// Scope: issues #1, #2, #3. First-run scaffolding plus opencode.json patch plus
+// model-role prompts plus idempotent re-runs with content-hash conflict detection.
 // Out of scope here:
-//   - #3: idempotent re-runs with content-hash conflict detection
 //   - #4: full Zod-validated .hero/config.jsonc schema
+// Extension point: writeManagedFile is the hash-aware writer that consults the
+// manifest. New managed files should route through it.
 
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createInterface } from "node:readline/promises";
+import { createHash } from "node:crypto";
 
 const PACKAGE_ROOT = resolve(fileURLToPath(import.meta.url), "..", "..");
 const TEMPLATES_DIR = join(PACKAGE_ROOT, "templates");
+const MANIFEST_REL = ".hero/.manifest.json";
 
 // Pinned git tag — the literal pin is the deliverable. No floating branch refs.
 const PLUGIN_REF = "github:org/opencode-hero-workflow#v0.1.0";
@@ -49,28 +52,90 @@ function walk(dir) {
   return out;
 }
 
-async function writeFileIfAbsent(dest, contents) {
-  if (existsSync(dest)) return false;
-  await mkdir(dirname(dest), { recursive: true });
-  await writeFile(dest, contents);
-  return true;
+function sha256(buf) {
+  return createHash("sha256").update(buf).digest("hex");
 }
 
-async function copyTemplates(targetDir) {
-  if (!existsSync(TEMPLATES_DIR)) return;
-  for (const src of walk(TEMPLATES_DIR)) {
-    const rel = relative(TEMPLATES_DIR, src);
-    if (rel === join(".hero", "config.jsonc")) continue;
-    const dest = join(targetDir, rel);
-    const buf = await readFile(src);
-    const wrote = await writeFileIfAbsent(dest, buf);
-    if (wrote) console.log(`wrote ${rel}`);
+function toBuffer(contents) {
+  return Buffer.isBuffer(contents) ? contents : Buffer.from(contents);
+}
+
+function majorOf(version) {
+  const m = /^(\d+)\./.exec(version);
+  return m ? Number(m[1]) : NaN;
+}
+
+async function readManifest(targetDir) {
+  const path = join(targetDir, MANIFEST_REL);
+  if (!existsSync(path)) {
+    return { version: null, files: /** @type {Record<string, string>} */ ({}) };
+  }
+  const raw = await readFile(path, "utf8");
+  try {
+    const parsed = JSON.parse(raw);
+    const version = typeof parsed.version === "string" ? parsed.version : null;
+    const files =
+      parsed.files && typeof parsed.files === "object" && !Array.isArray(parsed.files)
+        ? parsed.files
+        : {};
+    return { version, files };
+  } catch (err) {
+    throw new Error(
+      `${MANIFEST_REL} exists but is not valid JSON: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 }
 
-async function writeHeroVersion(targetDir, version) {
-  const dest = join(targetDir, ".hero", ".hero-version");
-  await writeFileIfAbsent(dest, `${version}\n`);
+async function writeManifest(targetDir, manifest) {
+  const path = join(targetDir, MANIFEST_REL);
+  await mkdir(dirname(path), { recursive: true });
+  const sortedFiles = /** @type {Record<string, string>} */ ({});
+  for (const k of Object.keys(manifest.files).sort()) {
+    sortedFiles[k] = manifest.files[k];
+  }
+  const payload = { version: manifest.version, files: sortedFiles };
+  await writeFile(path, `${JSON.stringify(payload, null, 2)}\n`);
+}
+
+// Decides what to do with a single managed file given its would-be content, on-disk
+// state, and the prior manifest entry. Manifest tracks the hash of what hero-init last
+// wrote, not the template hash, so user-customised files are detected even when the
+// template content has not changed.
+async function planManagedFile(targetDir, relPath, contents, manifest, mode) {
+  const buf = toBuffer(contents);
+  const wouldHash = sha256(buf);
+  const dest = join(targetDir, relPath);
+  const recordedHash = manifest.files[relPath];
+
+  if (!existsSync(dest)) {
+    return { action: "write", relPath, buf, wouldHash };
+  }
+
+  const diskHash = sha256(await readFile(dest));
+  if (diskHash === wouldHash) {
+    return { action: "skip", relPath, wouldHash };
+  }
+
+  const isTrackedAndModified = recordedHash !== undefined && diskHash !== recordedHash;
+
+  if (isTrackedAndModified) {
+    if (mode === "default") {
+      return { action: "conflict", relPath };
+    }
+    return { action: "write", relPath, buf, wouldHash };
+  }
+
+  if (recordedHash === undefined) {
+    return { action: "skip-foreign", relPath };
+  }
+
+  return { action: "write", relPath, buf, wouldHash };
+}
+
+async function writeManagedFile(targetDir, relPath, buf) {
+  const dest = join(targetDir, relPath);
+  await mkdir(dirname(dest), { recursive: true });
+  await writeFile(dest, buf);
 }
 
 async function patchOpencodeJson(targetDir) {
@@ -93,6 +158,7 @@ async function patchOpencodeJson(targetDir) {
     }
   }
 
+  const before = existed ? JSON.stringify(config) : null;
   config.defaultMode = "plan";
 
   /** @type {string[]} */
@@ -110,6 +176,10 @@ async function patchOpencodeJson(targetDir) {
   }
   config.plugins = plugins;
 
+  const after = JSON.stringify(config);
+  if (existed && before === after) {
+    return;
+  }
   await writeFile(path, `${JSON.stringify(config, null, 2)}\n`);
   console.log(existed ? "patched opencode.json" : "wrote opencode.json");
 }
@@ -119,7 +189,7 @@ function parseFlags(argv) {
   const flags = {};
   /** @type {string[]} */
   const positional = [];
-  const booleanFlags = new Set();
+  const booleanFlags = new Set(["force", "migrate"]);
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg.startsWith("--")) {
@@ -189,35 +259,81 @@ function stripJsonComments(src) {
     .replace(/(^|[^:"])\/\/[^\n]*/g, "$1");
 }
 
-// Writes .hero/config.jsonc layering the user's model selections on top of the template.
-// The template owns version + defaults; this writer overwrites the models block from the
-// current run.
-async function writeHeroConfigWithModels(targetDir, models) {
+// Computes the would-be content for .hero/config.jsonc. Existing user keys are preserved,
+// the models block is always overwritten from the current run, and in migrate mode any
+// new template keys absent from the user's file are layered in as defaults.
+async function buildHeroConfigContent(targetDir, models, mode) {
   const path = join(targetDir, ".hero", "config.jsonc");
+  /** @type {Record<string, unknown>} */
+  let config = {};
+
   const templateRaw = await readFile(join(TEMPLATES_DIR, ".hero", "config.jsonc"), "utf8");
   const templateParsed = JSON.parse(stripJsonComments(templateRaw).trim());
 
-  /** @type {Record<string, unknown>} */
-  let config = { ...templateParsed };
-  if (existsSync(path)) {
+  const fileExisted = existsSync(path);
+  if (fileExisted) {
     const raw = await readFile(path, "utf8");
     const stripped = stripJsonComments(raw).trim();
     try {
-      const onDisk = stripped.length === 0 ? {} : JSON.parse(stripped);
-      if (onDisk && typeof onDisk === "object" && !Array.isArray(onDisk)) {
-        config = { ...templateParsed, ...onDisk };
-      }
+      config = stripped.length === 0 ? {} : JSON.parse(stripped);
     } catch (err) {
       throw new Error(
         `.hero/config.jsonc exists but is not valid JSON: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
+    if (config === null || typeof config !== "object" || Array.isArray(config)) {
+      throw new Error(".hero/config.jsonc must contain a JSON object at the root");
+    }
+  }
+
+  if (!fileExisted || mode === "migrate") {
+    for (const [k, v] of Object.entries(templateParsed)) {
+      if (!(k in config)) config[k] = v;
+    }
   }
 
   config.models = models;
+  return `${JSON.stringify(config, null, 2)}\n`;
+}
 
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, `${JSON.stringify(config, null, 2)}\n`);
+async function buildManagedFileSet(targetDir, models, version, mode) {
+  /** @type {Array<{ relPath: string, contents: Buffer | string }>} */
+  const files = [];
+
+  if (existsSync(TEMPLATES_DIR)) {
+    for (const src of walk(TEMPLATES_DIR)) {
+      const rel = relative(TEMPLATES_DIR, src);
+      if (rel === join(".hero", "config.jsonc")) continue;
+      const buf = await readFile(src);
+      files.push({ relPath: rel, contents: buf });
+    }
+  }
+
+  files.push({ relPath: join(".hero", ".hero-version"), contents: `${version}\n` });
+  files.push({
+    relPath: join(".hero", "config.jsonc"),
+    contents: await buildHeroConfigContent(targetDir, models, mode),
+  });
+
+  return files;
+}
+
+// Identifies manifest entries whose files were deleted by the user since the last run.
+// They are dropped from the manifest and excluded from this run so we do not recreate
+// them; the user can recover any one of them with --force.
+function reconcileMissingManagedFiles(targetDir, manifest, expectedRelPaths) {
+  const expected = new Set(expectedRelPaths);
+  /** @type {Set<string>} */
+  const userDeleted = new Set();
+  for (const relPath of Object.keys(manifest.files)) {
+    if (!expected.has(relPath)) continue;
+    const dest = join(targetDir, relPath);
+    if (!existsSync(dest)) {
+      delete manifest.files[relPath];
+      userDeleted.add(relPath);
+    }
+  }
+  return userDeleted;
 }
 
 async function main() {
@@ -225,14 +341,66 @@ async function main() {
   const targetArg = positional[0] ?? process.cwd();
   const targetDir = resolve(targetArg);
 
+  const force = flags.force === true;
+  const migrate = flags.migrate === true;
+  if (force && migrate) {
+    throw new Error("--force and --migrate are mutually exclusive");
+  }
+  const mode = force ? "force" : migrate ? "migrate" : "default";
+
   const models = await collectModels(flags);
 
   await mkdir(targetDir, { recursive: true });
 
   const version = await readPackageVersion();
-  await copyTemplates(targetDir);
-  await writeHeroVersion(targetDir, version);
-  await writeHeroConfigWithModels(targetDir, models);
+  const manifest = await readManifest(targetDir);
+
+  if (
+    manifest.version !== null &&
+    majorOf(manifest.version) !== majorOf(version) &&
+    mode !== "force"
+  ) {
+    console.error(
+      `Major version mismatch: manifest at v${manifest.version}, package at v${version}. Manual migration required; see CHANGELOG.`,
+    );
+    process.exit(1);
+  }
+
+  const managed = await buildManagedFileSet(targetDir, models, version, mode);
+  const userDeleted = reconcileMissingManagedFiles(
+    targetDir,
+    manifest,
+    managed.map((m) => m.relPath),
+  );
+
+  /** @type {Array<{ action: string, relPath: string, buf?: Buffer, wouldHash?: string }>} */
+  const plans = [];
+  for (const item of managed) {
+    if (userDeleted.has(item.relPath) && mode !== "force") continue;
+    plans.push(await planManagedFile(targetDir, item.relPath, item.contents, manifest, mode));
+  }
+
+  const conflicts = plans.filter((p) => p.action === "conflict").map((p) => p.relPath);
+  if (conflicts.length > 0) {
+    console.error("hero-init refused to overwrite user-modified files:");
+    for (const c of conflicts) console.error(`  ${c}`);
+    console.error("Run with --force to overwrite or --migrate for compatible upgrades.");
+    process.exit(1);
+  }
+
+  for (const plan of plans) {
+    if (plan.action === "write" && plan.buf && plan.wouldHash) {
+      await writeManagedFile(targetDir, plan.relPath, plan.buf);
+      manifest.files[plan.relPath] = plan.wouldHash;
+      console.log(`wrote ${plan.relPath}`);
+    } else if (plan.action === "skip" && plan.wouldHash) {
+      manifest.files[plan.relPath] = plan.wouldHash;
+    }
+  }
+
+  manifest.version = version;
+  await writeManifest(targetDir, manifest);
+
   await patchOpencodeJson(targetDir);
 
   console.log(`hero-init done (version ${version})`);

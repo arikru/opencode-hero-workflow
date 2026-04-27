@@ -5,6 +5,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -146,5 +147,122 @@ describe("hero-init model-role prompts", () => {
     ]);
     expect(result.status).not.toBe(0);
     expect(result.stderr).toContain("reviewer");
+  });
+});
+
+describe("hero-init idempotency and conflict detection", () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), "hero-init-idem-"));
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  test("writes a manifest covering managed files but not opencode.json", () => {
+    runInit(tempDir);
+
+    const manifestPath = join(tempDir, ".hero", ".manifest.json");
+    expect(existsSync(manifestPath)).toBe(true);
+
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    expect(manifest.version).toBe(PACKAGE_VERSION);
+    expect(typeof manifest.files).toBe("object");
+    expect(manifest.files[".hero/config.jsonc"]).toMatch(/^[a-f0-9]{64}$/);
+    expect(manifest.files[".hero/.hero-version"]).toMatch(/^[a-f0-9]{64}$/);
+    expect(manifest.files["opencode.json"]).toBeUndefined();
+  });
+
+  test("second run on a clean scaffold does not rewrite managed files", () => {
+    runInit(tempDir);
+
+    const configPath = join(tempDir, ".hero", "config.jsonc");
+    const versionPath = join(tempDir, ".hero", ".hero-version");
+    const beforeConfig = statSync(configPath).mtimeMs;
+    const beforeVersion = statSync(versionPath).mtimeMs;
+
+    const result = runInit(tempDir);
+
+    expect(statSync(configPath).mtimeMs).toBe(beforeConfig);
+    expect(statSync(versionPath).mtimeMs).toBe(beforeVersion);
+    expect(result.stdout).not.toMatch(/wrote \.hero\/config\.jsonc/);
+    expect(result.stdout).not.toMatch(/wrote \.hero\/\.hero-version/);
+  });
+
+  test("refuses to overwrite a user-modified .hero/config.jsonc without --force", () => {
+    runInit(tempDir);
+
+    const configPath = join(tempDir, ".hero", "config.jsonc");
+    const customised = JSON.parse(readFileSync(configPath, "utf8"));
+    customised.models.implementer = "user-pinned/some-model";
+    writeFileSync(configPath, `${JSON.stringify(customised, null, 2)}\n`, "utf8");
+
+    const result = runInitRaw([tempDir, ...modelFlags()]);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain(".hero/config.jsonc");
+    expect(result.stderr).toContain("--force");
+
+    const onDisk = JSON.parse(readFileSync(configPath, "utf8"));
+    expect(onDisk.models.implementer).toBe("user-pinned/some-model");
+  });
+
+  test("--force overwrites user modifications", () => {
+    runInit(tempDir);
+
+    const configPath = join(tempDir, ".hero", "config.jsonc");
+    const customised = JSON.parse(readFileSync(configPath, "utf8"));
+    customised.models.implementer = "user-pinned/some-model";
+    writeFileSync(configPath, `${JSON.stringify(customised, null, 2)}\n`, "utf8");
+
+    runInit(tempDir, ["--force"]);
+
+    const onDisk = JSON.parse(readFileSync(configPath, "utf8"));
+    expect(onDisk.models.implementer).toBe(DEFAULT_MODELS.implementer);
+  });
+
+  test("--migrate succeeds against a manifest with the current major", () => {
+    runInit(tempDir);
+
+    const manifestPath = join(tempDir, ".hero", ".manifest.json");
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.version = "0.0.1";
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+
+    const result = runInitRaw([tempDir, ...modelFlags(), "--migrate"]);
+    expect(result.status).toBe(0);
+
+    const updated = JSON.parse(readFileSync(manifestPath, "utf8"));
+    expect(updated.version).toBe(PACKAGE_VERSION);
+  });
+
+  test("--migrate refuses against a fabricated v999 manifest", () => {
+    runInit(tempDir);
+
+    const manifestPath = join(tempDir, ".hero", ".manifest.json");
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.version = "999.0.0";
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+
+    const result = runInitRaw([tempDir, ...modelFlags(), "--migrate"]);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("Major version mismatch");
+  });
+
+  test("a manifest entry whose file was deleted by the user is dropped, not recreated", () => {
+    runInit(tempDir);
+
+    const gitkeep = join(tempDir, ".opencode", "skills", ".gitkeep");
+    expect(existsSync(gitkeep)).toBe(true);
+    rmSync(gitkeep);
+
+    runInit(tempDir);
+
+    expect(existsSync(gitkeep)).toBe(false);
+    const manifest = JSON.parse(
+      readFileSync(join(tempDir, ".hero", ".manifest.json"), "utf8"),
+    );
+    expect(manifest.files[".opencode/skills/.gitkeep"]).toBeUndefined();
   });
 });

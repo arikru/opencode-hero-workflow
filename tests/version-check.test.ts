@@ -42,9 +42,9 @@ describe("readScaffoldVersion", () => {
 
   test("returns trimmed contents when file exists", async () => {
     const path = join(tempDir, ".hero-version");
-    writeFileSync(path, "0.1.0\n", "utf8");
+    writeFileSync(path, "0.1.1\n", "utf8");
     const result = await readScaffoldVersion(path);
-    expect(result).toBe("0.1.0");
+    expect(result).toBe("0.1.1");
   });
 });
 
@@ -66,7 +66,7 @@ describe("checkVersionDrift", () => {
     const { toast, calls } = createToastSpy();
 
     await checkVersionDrift({
-      packageVersion: "0.1.0",
+      packageVersion: "0.1.1",
       scaffoldedVersionPath,
       toast,
     });
@@ -75,11 +75,11 @@ describe("checkVersionDrift", () => {
   });
 
   test("does not toast when versions match", async () => {
-    writeFileSync(scaffoldedVersionPath, "0.1.0\n", "utf8");
+    writeFileSync(scaffoldedVersionPath, "0.1.1\n", "utf8");
     const { toast, calls } = createToastSpy();
 
     await checkVersionDrift({
-      packageVersion: "0.1.0",
+      packageVersion: "0.1.1",
       scaffoldedVersionPath,
       toast,
     });
@@ -88,11 +88,11 @@ describe("checkVersionDrift", () => {
   });
 
   test("tolerates trailing whitespace in the scaffold file", async () => {
-    writeFileSync(scaffoldedVersionPath, "0.1.0\n", "utf8");
+    writeFileSync(scaffoldedVersionPath, "0.1.1\n", "utf8");
     const { toast, calls } = createToastSpy();
 
     await checkVersionDrift({
-      packageVersion: "0.1.0",
+      packageVersion: "0.1.1",
       scaffoldedVersionPath,
       toast,
     });
@@ -101,7 +101,7 @@ describe("checkVersionDrift", () => {
   });
 
   test("toasts exactly once when versions differ, mentioning both", async () => {
-    writeFileSync(scaffoldedVersionPath, "0.1.0\n", "utf8");
+    writeFileSync(scaffoldedVersionPath, "0.1.1\n", "utf8");
     const { toast, calls } = createToastSpy();
 
     await checkVersionDrift({
@@ -111,7 +111,7 @@ describe("checkVersionDrift", () => {
     });
 
     expect(calls).toHaveLength(1);
-    expect(calls[0].message).toContain("0.1.0");
+    expect(calls[0].message).toContain("0.1.1");
     expect(calls[0].message).toContain("0.2.0");
     expect(calls[0].severity).toBe("warn");
   });

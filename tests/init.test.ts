@@ -13,7 +13,7 @@ import { join } from "node:path";
 
 const PACKAGE_ROOT = new URL("..", import.meta.url).pathname;
 const INIT_SCRIPT = join(PACKAGE_ROOT, "bin", "init.js");
-const PINNED_PLUGIN_REF = "github:arikru/opencode-hero-workflow#v0.1.0";
+const PINNED_PLUGIN_REF = "github:arikru/opencode-hero-workflow#v0.1.1";
 
 const PACKAGE_VERSION = JSON.parse(
   readFileSync(join(PACKAGE_ROOT, "package.json"), "utf8"),
@@ -120,7 +120,7 @@ describe("hero-init model-role prompts", () => {
     const configPath = join(tempDir, ".hero", "config.jsonc");
     const parsed = JSON.parse(readFileSync(configPath, "utf8"));
 
-    expect(parsed.version).toBe("0.1.0");
+    expect(parsed.version).toBe("0.1.1");
     expect(parsed.models).toEqual(DEFAULT_MODELS);
   });
 

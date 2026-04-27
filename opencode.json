@@ -2,6 +2,6 @@
   "$schema": "https://opencode.ai/config.json",
   "default_agent": "plan",
   "plugin": [
-    "github:arikru/opencode-hero-workflow#v0.1.0"
+    "github:arikru/opencode-hero-workflow#v0.1.1"
   ]
 }

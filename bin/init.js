@@ -19,7 +19,7 @@ const TEMPLATES_DIR = join(PACKAGE_ROOT, "templates");
 const MANIFEST_REL = ".hero/.manifest.json";
 
 // Pinned git tag — the literal pin is the deliverable. No floating branch refs.
-const PLUGIN_REF = "github:arikru/opencode-hero-workflow#v0.1.0";
+const PLUGIN_REF = "github:arikru/opencode-hero-workflow#v0.1.1";
 
 const MODEL_ROLES = /** @type {const} */ ([
   { key: "implementer", label: "Implementer", example: "github-copilot/claude-sonnet-4.5" },
@@ -237,14 +237,8 @@ async function collectModels(flags) {
     if (!rl) {
       rl = createInterface({ input: process.stdin, output: process.stdout });
     }
-    while (true) {
-      const answer = (await rl.question(`${role.label} model (e.g. ${role.example}): `)).trim();
-      if (answer.length > 0) {
-        models[role.key] = answer;
-        break;
-      }
-      console.log(`${role.label} model is required.`);
-    }
+    const answer = (await rl.question(`${role.label} model [${role.example}]: `)).trim();
+    models[role.key] = answer.length > 0 ? answer : role.example;
   }
 
   if (rl) rl.close();

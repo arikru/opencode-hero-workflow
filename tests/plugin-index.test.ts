@@ -52,7 +52,7 @@ function makeContext(opts: {
   const { toast, toastCalls, log, logCalls } = createSpies();
   const ctx: PluginContext = {
     projectRoot: opts.projectRoot,
-    packageVersion: opts.packageVersion ?? "0.1.0",
+    packageVersion: opts.packageVersion ?? "0.1.1",
     toast,
     log,
   };
@@ -60,7 +60,7 @@ function makeContext(opts: {
 }
 
 const MINIMAL_CONFIG = JSON.stringify({
-  version: "0.1.0",
+  version: "0.1.1",
   models: {
     implementer: "github-copilot/claude-sonnet-4.5",
     reviewer: "github-copilot/claude-opus-4-7",
@@ -156,7 +156,7 @@ describe("heroPlugin", () => {
     writeFileSync(join(tempDir, ".hero", ".hero-version"), "0.0.9\n", "utf8");
     const { ctx, toastCalls } = makeContext({
       projectRoot: tempDir,
-      packageVersion: "0.1.0",
+      packageVersion: "0.1.1",
     });
 
     await heroPlugin(ctx);
@@ -168,7 +168,7 @@ describe("heroPlugin", () => {
       (c) =>
         c.severity === "warn" &&
         c.message.includes("0.0.9") &&
-        c.message.includes("0.1.0"),
+        c.message.includes("0.1.1"),
     );
     expect(driftToasts.length).toBeGreaterThanOrEqual(1);
   });

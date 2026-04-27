@@ -25,7 +25,7 @@ describe("loadHeroConfig", () => {
     writeConfig(
       tempDir,
       JSON.stringify({
-        version: "0.1.0",
+        version: "0.1.1",
         models: {
           implementer: "github-copilot/claude-sonnet-4.5",
           reviewer: "github-copilot/claude-opus-4-7",
@@ -36,7 +36,7 @@ describe("loadHeroConfig", () => {
 
     const cfg = await loadHeroConfig(tempDir);
 
-    expect(cfg.version).toBe("0.1.0");
+    expect(cfg.version).toBe("0.1.1");
     expect(cfg.models.implementer).toBe("github-copilot/claude-sonnet-4.5");
     expect(cfg.stack).toBe("auto");
     expect(cfg.verify.enabled).toBe(true);
@@ -64,7 +64,7 @@ describe("loadHeroConfig", () => {
       `// top comment
 {
   /* block comment */
-  "version": "0.1.0",
+  "version": "0.1.1",
   "models": {
     "implementer": "x/y", // line trailing
     "reviewer": "x/y",
@@ -75,7 +75,7 @@ describe("loadHeroConfig", () => {
     );
 
     const cfg = await loadHeroConfig(tempDir);
-    expect(cfg.version).toBe("0.1.0");
+    expect(cfg.version).toBe("0.1.1");
     expect(cfg.models.reviewer).toBe("x/y");
   });
 
@@ -83,7 +83,7 @@ describe("loadHeroConfig", () => {
     writeConfig(
       tempDir,
       JSON.stringify({
-        version: "0.1.0",
+        version: "0.1.1",
         models: {
           reviewer: "x/y",
           planner: "x/y",
@@ -101,14 +101,14 @@ describe("loadHeroConfig", () => {
     writeConfig(
       tempDir,
       JSON.stringify({
-        version: "0.1.0",
+        version: "0.1.1",
         models: { implementer: "a/b", reviewer: "a/b", planner: "a/b" },
         nonsense: { whatever: true },
       }),
     );
 
     const cfg = await loadHeroConfig(tempDir);
-    expect(cfg.version).toBe("0.1.0");
+    expect(cfg.version).toBe("0.1.1");
     expect((cfg as Record<string, unknown>).nonsense).toBeUndefined();
   });
 
@@ -116,7 +116,7 @@ describe("loadHeroConfig", () => {
     writeConfig(
       tempDir,
       JSON.stringify({
-        version: "0.1.0",
+        version: "0.1.1",
         models: { implementer: "a/b", reviewer: "a/b", planner: "a/b" },
         tokenBudget: { warnAt: "lots" },
       }),

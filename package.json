@@ -7,7 +7,8 @@
     "hero-init": "./bin/init.js"
   },
   "scripts": {
-    "test": "bun test"
+    "test": "bun test",
+    "build:schema": "bun run scripts/generate-schema.ts"
   },
   "files": [
     "bin",
@@ -19,6 +20,10 @@
   ],
   "devDependencies": {
     "@types/bun": "latest",
-    "typescript": "^5.4.0"
+    "typescript": "^5.4.0",
+    "zod-to-json-schema": "^3.25.2"
+  },
+  "dependencies": {
+    "zod": "^3.25.76"
   }
 }

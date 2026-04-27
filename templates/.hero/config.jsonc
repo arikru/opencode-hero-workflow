@@ -1,4 +1,11 @@
 // Hero workflow configuration. See https://github.com/org/opencode-hero-workflow for docs.
+// $schema reference enables editor autocomplete.
 {
-  "version": "0.1.0"
+  "$schema": "./node_modules/opencode-hero-workflow/schemas/hero-schema.json",
+  "version": "<filled by init>",
+  "models": {
+    "implementer": "<filled by init>",
+    "reviewer": "<filled by init>",
+    "planner": "<filled by init>"
+  }
 }

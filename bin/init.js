@@ -260,9 +260,9 @@ function stripJsonComments(src) {
 }
 
 // Computes the would-be content for .hero/config.jsonc. Existing user keys are preserved,
-// the models block is always overwritten from the current run, and in migrate mode any
+// version + models are always overwritten from the current run, and in migrate mode any
 // new template keys absent from the user's file are layered in as defaults.
-async function buildHeroConfigContent(targetDir, models, mode) {
+async function buildHeroConfigContent(targetDir, models, version, mode) {
   const path = join(targetDir, ".hero", "config.jsonc");
   /** @type {Record<string, unknown>} */
   let config = {};
@@ -292,6 +292,7 @@ async function buildHeroConfigContent(targetDir, models, mode) {
     }
   }
 
+  config.version = version;
   config.models = models;
   return `${JSON.stringify(config, null, 2)}\n`;
 }
@@ -312,7 +313,7 @@ async function buildManagedFileSet(targetDir, models, version, mode) {
   files.push({ relPath: join(".hero", ".hero-version"), contents: `${version}\n` });
   files.push({
     relPath: join(".hero", "config.jsonc"),
-    contents: await buildHeroConfigContent(targetDir, models, mode),
+    contents: await buildHeroConfigContent(targetDir, models, version, mode),
   });
 
   return files;

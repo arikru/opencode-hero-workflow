@@ -1,0 +1,164 @@
+{
+  "$ref": "#/definitions/HeroConfig",
+  "definitions": {
+    "HeroConfig": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string"
+        },
+        "models": {
+          "type": "object",
+          "properties": {
+            "implementer": {
+              "type": "string"
+            },
+            "reviewer": {
+              "type": "string"
+            },
+            "planner": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "implementer",
+            "reviewer",
+            "planner"
+          ],
+          "additionalProperties": false
+        },
+        "stack": {
+          "type": "string",
+          "enum": [
+            "python",
+            "node",
+            "auto"
+          ],
+          "default": "auto"
+        },
+        "verify": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            },
+            "debounceMs": {
+              "type": "number",
+              "default": 5000
+            },
+            "commands": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "default": []
+            }
+          },
+          "additionalProperties": false,
+          "default": {}
+        },
+        "tokenBudget": {
+          "type": "object",
+          "properties": {
+            "warnAt": {
+              "type": "number",
+              "default": 80000
+            },
+            "alarmAt": {
+              "type": "number",
+              "default": 100000
+            }
+          },
+          "additionalProperties": false,
+          "default": {}
+        },
+        "guardrails": {
+          "type": "object",
+          "properties": {
+            "blockEnvReads": {
+              "type": "boolean",
+              "default": true
+            },
+            "blockForcePush": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "additionalProperties": false,
+          "default": {}
+        },
+        "github": {
+          "type": "object",
+          "properties": {
+            "repo": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "labels": {
+              "type": "object",
+              "properties": {
+                "ready": {
+                  "type": "string",
+                  "default": "hero:ready"
+                },
+                "inProgress": {
+                  "type": "string",
+                  "default": "hero:in-progress"
+                },
+                "blocked": {
+                  "type": "string",
+                  "default": "hero:blocked"
+                }
+              },
+              "additionalProperties": false,
+              "default": {}
+            }
+          },
+          "additionalProperties": false,
+          "default": {}
+        },
+        "sandcastle": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false
+            },
+            "sandboxProvider": {
+              "type": "string",
+              "default": "sandcastle"
+            },
+            "imageName": {
+              "type": "string",
+              "default": "ubuntu:24.04"
+            },
+            "mountOpencodeAuth": {
+              "type": "boolean",
+              "default": true
+            },
+            "maxIterations": {
+              "type": "number",
+              "default": 50
+            },
+            "idleTimeoutSeconds": {
+              "type": "number",
+              "default": 600
+            }
+          },
+          "additionalProperties": false,
+          "default": {}
+        }
+      },
+      "required": [
+        "version",
+        "models"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}

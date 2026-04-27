@@ -9,7 +9,7 @@
 
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createInterface } from "node:readline/promises";
 import { createHash } from "node:crypto";
@@ -189,7 +189,7 @@ function parseFlags(argv) {
   const flags = {};
   /** @type {string[]} */
   const positional = [];
-  const booleanFlags = new Set(["force", "migrate"]);
+  const booleanFlags = new Set(["force", "migrate", "sandcastle-enabled"]);
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg.startsWith("--")) {
@@ -262,7 +262,12 @@ function stripJsonComments(src) {
 // Computes the would-be content for .hero/config.jsonc. Existing user keys are preserved,
 // version + models are always overwritten from the current run, and in migrate mode any
 // new template keys absent from the user's file are layered in as defaults.
-async function buildHeroConfigContent(targetDir, models, version, mode) {
+//
+// sandcastleEnabled: when explicitly true (via --sandcastle-enabled), force the
+// sandcastle.enabled flag in the generated config to true. When false/undefined, do not
+// flip an existing user-set flag back to false — Zod schema defaults supply the rest of
+// the sandcastle block at runtime, so we only need to write the enabled key.
+async function buildHeroConfigContent(targetDir, models, version, mode, sandcastleEnabled) {
   const path = join(targetDir, ".hero", "config.jsonc");
   /** @type {Record<string, unknown>} */
   let config = {};
@@ -294,27 +299,73 @@ async function buildHeroConfigContent(targetDir, models, version, mode) {
 
   config.version = version;
   config.models = models;
+
+  if (sandcastleEnabled) {
+    const existingSandcastle =
+      config.sandcastle && typeof config.sandcastle === "object" && !Array.isArray(config.sandcastle)
+        ? /** @type {Record<string, unknown>} */ (config.sandcastle)
+        : {};
+    config.sandcastle = { ...existingSandcastle, enabled: true };
+  }
+
   return `${JSON.stringify(config, null, 2)}\n`;
 }
 
-async function buildManagedFileSet(targetDir, models, version, mode) {
+// Reads sandcastle.enabled from an already-written .hero/config.jsonc. The default is
+// false (matches the Zod schema default). bin/init.js stays JSON-only — we don't import
+// plugin/config.ts to avoid coupling the CLI to a runtime module.
+function readSandcastleEnabled(generatedContent) {
+  try {
+    const parsed = JSON.parse(stripJsonComments(generatedContent).trim());
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      const sc = /** @type {Record<string, unknown>} */ (parsed).sandcastle;
+      if (sc && typeof sc === "object" && !Array.isArray(sc)) {
+        return /** @type {Record<string, unknown>} */ (sc).enabled === true;
+      }
+    }
+  } catch {
+    // Fall through to default.
+  }
+  return false;
+}
+
+// Single-source-of-truth filter: only files under templates/.sandcastle/ when the user has
+// opted into Sandcastle. Keeps the conditional out of the walk loop and out of the planner.
+function isTemplateAllowed(relPath, sandcastleEnabled) {
+  const sandcastlePrefix = `.sandcastle${sep}`;
+  if (relPath === ".sandcastle" || relPath.startsWith(sandcastlePrefix)) {
+    return sandcastleEnabled;
+  }
+  return true;
+}
+
+async function buildManagedFileSet(targetDir, models, version, mode, sandcastleFlag) {
   /** @type {Array<{ relPath: string, contents: Buffer | string }>} */
   const files = [];
+
+  // Build the canonical .hero/config.jsonc first so we can read sandcastle.enabled out
+  // of it; the value drives whether templates/.sandcastle/** is included in this run.
+  const configContent = await buildHeroConfigContent(
+    targetDir,
+    models,
+    version,
+    mode,
+    sandcastleFlag,
+  );
+  const sandcastleEnabled = readSandcastleEnabled(configContent);
 
   if (existsSync(TEMPLATES_DIR)) {
     for (const src of walk(TEMPLATES_DIR)) {
       const rel = relative(TEMPLATES_DIR, src);
       if (rel === join(".hero", "config.jsonc")) continue;
+      if (!isTemplateAllowed(rel, sandcastleEnabled)) continue;
       const buf = await readFile(src);
       files.push({ relPath: rel, contents: buf });
     }
   }
 
   files.push({ relPath: join(".hero", ".hero-version"), contents: `${version}\n` });
-  files.push({
-    relPath: join(".hero", "config.jsonc"),
-    contents: await buildHeroConfigContent(targetDir, models, version, mode),
-  });
+  files.push({ relPath: join(".hero", "config.jsonc"), contents: configContent });
 
   return files;
 }
@@ -348,6 +399,7 @@ async function main() {
     throw new Error("--force and --migrate are mutually exclusive");
   }
   const mode = force ? "force" : migrate ? "migrate" : "default";
+  const sandcastleFlag = flags["sandcastle-enabled"] === true;
 
   const models = await collectModels(flags);
 
@@ -367,7 +419,7 @@ async function main() {
     process.exit(1);
   }
 
-  const managed = await buildManagedFileSet(targetDir, models, version, mode);
+  const managed = await buildManagedFileSet(targetDir, models, version, mode, sandcastleFlag);
   const userDeleted = reconcileMissingManagedFiles(
     targetDir,
     manifest,

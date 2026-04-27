@@ -1,0 +1,8 @@
+{
+  "name": "<project>-sandcastle",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "sandcastle": "^0.1.0"
+  }
+}

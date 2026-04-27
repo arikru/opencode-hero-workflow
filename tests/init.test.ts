@@ -266,3 +266,57 @@ describe("hero-init idempotency and conflict detection", () => {
     expect(manifest.files[".opencode/skills/.gitkeep"]).toBeUndefined();
   });
 });
+
+describe("hero-init sandcastle scaffolding", () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), "hero-init-sandcastle-"));
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  test("does not scaffold .sandcastle/ when sandcastle is disabled by default", () => {
+    runInit(tempDir);
+
+    expect(existsSync(join(tempDir, ".sandcastle"))).toBe(false);
+    expect(existsSync(join(tempDir, ".sandcastle", "package.json"))).toBe(false);
+  });
+
+  test("scaffolds .sandcastle/package.json when --sandcastle-enabled is passed", () => {
+    runInit(tempDir, ["--sandcastle-enabled"]);
+
+    const pkgPath = join(tempDir, ".sandcastle", "package.json");
+    expect(existsSync(pkgPath)).toBe(true);
+
+    const parsed = JSON.parse(readFileSync(pkgPath, "utf8"));
+    expect(parsed.dependencies).toBeDefined();
+    expect(parsed.dependencies.sandcastle).toBeDefined();
+
+    const configPath = join(tempDir, ".hero", "config.jsonc");
+    const config = JSON.parse(readFileSync(configPath, "utf8"));
+    expect(config.sandcastle).toBeDefined();
+    expect(config.sandcastle.enabled).toBe(true);
+  });
+
+  test("retains .sandcastle/package.json on a re-run without the flag if config still has enabled: true", () => {
+    runInit(tempDir, ["--sandcastle-enabled"]);
+
+    const pkgPath = join(tempDir, ".sandcastle", "package.json");
+    expect(existsSync(pkgPath)).toBe(true);
+
+    runInit(tempDir);
+
+    expect(existsSync(pkgPath)).toBe(true);
+  });
+
+  test("manifest covers .sandcastle/package.json when sandcastle is enabled", () => {
+    runInit(tempDir, ["--sandcastle-enabled"]);
+
+    const manifestPath = join(tempDir, ".hero", ".manifest.json");
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    expect(manifest.files[".sandcastle/package.json"]).toMatch(/^[a-f0-9]{64}$/);
+  });
+});

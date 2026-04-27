@@ -13,7 +13,7 @@ import { join } from "node:path";
 
 const PACKAGE_ROOT = new URL("..", import.meta.url).pathname;
 const INIT_SCRIPT = join(PACKAGE_ROOT, "bin", "init.js");
-const PINNED_PLUGIN_REF = "github:arikru/opencode-hero-workflow#v0.1.1";
+const PINNED_PLUGIN_REF = "github:arikru/opencode-hero-workflow#v0.1.2";
 
 const PACKAGE_VERSION = JSON.parse(
   readFileSync(join(PACKAGE_ROOT, "package.json"), "utf8"),
@@ -120,7 +120,7 @@ describe("hero-init model-role prompts", () => {
     const configPath = join(tempDir, ".hero", "config.jsonc");
     const parsed = JSON.parse(readFileSync(configPath, "utf8"));
 
-    expect(parsed.version).toBe("0.1.1");
+    expect(parsed.version).toBe("0.1.2");
     expect(parsed.models).toEqual(DEFAULT_MODELS);
   });
 
@@ -147,6 +147,20 @@ describe("hero-init model-role prompts", () => {
     ]);
     expect(result.status).not.toBe(0);
     expect(result.stderr).toContain("reviewer");
+  });
+
+  test("falls back to default models when no flags and stdin is not a TTY (e.g. bunx)", () => {
+    // spawnSync with default stdio gives the child a piped (non-TTY) stdin,
+    // matching how `bunx ... init` invokes us. This must succeed and apply the
+    // example model defaults rather than erroring out.
+    const result = spawnSync("bun", [INIT_SCRIPT, tempDir], { encoding: "utf8" });
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("using default");
+
+    const parsed = JSON.parse(
+      readFileSync(join(tempDir, ".hero", "config.jsonc"), "utf8"),
+    );
+    expect(parsed.models).toEqual(DEFAULT_MODELS);
   });
 });
 

@@ -19,7 +19,7 @@ const TEMPLATES_DIR = join(PACKAGE_ROOT, "templates");
 const MANIFEST_REL = ".hero/.manifest.json";
 
 // Pinned git tag — the literal pin is the deliverable. No floating branch refs.
-const PLUGIN_REF = "github:arikru/opencode-hero-workflow#v0.1.1";
+const PLUGIN_REF = "github:arikru/opencode-hero-workflow#v0.1.2";
 
 const MODEL_ROLES = /** @type {const} */ ([
   { key: "implementer", label: "Implementer", example: "github-copilot/claude-sonnet-4.5" },
@@ -212,7 +212,9 @@ function parseFlags(argv) {
 }
 
 // Flag-based input is the non-interactive path; CI and tests rely on it. TTY callers without
-// flags are prompted. No silent defaults — empty values are always rejected.
+// flags are prompted (Enter accepts the example as default). Non-TTY callers without flags
+// (e.g. `bunx ... init` where stdin is piped) silently fall back to the example defaults
+// and log which defaults were chosen so the choice is auditable.
 async function collectModels(flags) {
   /** @type {Record<string, string>} */
   const models = {};
@@ -230,9 +232,9 @@ async function collectModels(flags) {
       continue;
     }
     if (!isTTY) {
-      throw new Error(
-        `Missing --${role.key}. stdin is not a TTY; pass --implementer, --reviewer, and --planner for non-interactive runs.`,
-      );
+      console.log(`${role.label} model: using default ${role.example} (no --${role.key} flag, stdin not a TTY)`);
+      models[role.key] = role.example;
+      continue;
     }
     if (!rl) {
       rl = createInterface({ input: process.stdin, output: process.stdout });

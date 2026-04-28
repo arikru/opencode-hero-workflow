@@ -5,6 +5,12 @@ on:
     tags:
       - "v*"
 
+# id-token: write is required for npm trusted publishing (OIDC).
+# contents: read is the default minimum after id-token is requested.
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -15,11 +21,15 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
 
+      # Node 22.14+ and npm 11.5.1+ are required for npm trusted publishing.
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22.14"
           registry-url: "https://registry.npmjs.org"
+
+      - name: Upgrade npm CLI for trusted publishing
+        run: npm install --global npm@latest
 
       - name: bun install
         run: bun install
@@ -50,6 +60,13 @@ jobs:
             exit 1
           fi
 
+      # The npm CLI auto-detects the GitHub Actions OIDC environment and
+      # exchanges the OIDC token for a short-lived publish token when a
+      # trusted publisher is configured for this package on npmjs.com.
+      # If trusted publishing is not yet configured (e.g. the bootstrap
+      # publish), the CLI falls back to NODE_AUTH_TOKEN. Once trusted
+      # publishing is live and "disallow tokens" is enabled on npmjs.com,
+      # the NPM_TOKEN secret can be removed entirely.
       - name: npm publish
         run: npm publish --access public
         env:

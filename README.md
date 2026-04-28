@@ -212,6 +212,23 @@ Releases are published to npm by a tag-driven GitHub Actions workflow (`.github/
 
 If a publish fails after the tag is pushed, fix the underlying issue, bump to the next patch version, and tag again. Do not force-push tags or attempt to re-publish the same version — the guard in the workflow will reject it.
 
+#### Authentication: trusted publishing (preferred) vs. token (bootstrap)
+
+The publish workflow is configured to support npm [trusted publishing](https://docs.npmjs.com/trusted-publishers) via OIDC. With trusted publishing, the CI run authenticates to npm using a short-lived OIDC token issued by GitHub Actions — no long-lived `NPM_TOKEN` secret is needed and provenance attestations are generated automatically.
+
+Trusted publishing must be configured per-package on npmjs.com, which means the **first** publish of a package has to use a token. The bootstrap procedure is:
+
+1. **Bootstrap publish (one-time, with token).** Set the `NPM_TOKEN` repo secret to a publish-capable Automation token, then push a `v*` tag. The workflow falls back to `NODE_AUTH_TOKEN` because no trusted publisher is registered yet.
+2. **Configure trusted publishing.** On npmjs.com → your package → Settings → Trusted Publisher, choose GitHub Actions and fill in:
+   - Organization or user: `arikru`
+   - Repository: `opencode-hero-workflow`
+   - Workflow filename: `publish.yml`
+   - Environment name: leave blank (we don't use a deployment environment).
+3. **Verify.** Push the next `v*` tag. The workflow log should show `npm` exchanging an OIDC token instead of using `NODE_AUTH_TOKEN`. The published version on npmjs.com will display a "Provenance" badge.
+4. **Lock down tokens (recommended).** On npmjs.com → your package → Settings → Publishing access, choose **"Require two-factor authentication and disallow tokens"**. Then revoke the bootstrap `NPM_TOKEN` and delete the `NPM_TOKEN` GitHub secret.
+
+The workflow keeps `NODE_AUTH_TOKEN` wired up so that step 1 works without changes, and so an emergency manual republish is still possible if trusted publishing is ever disabled.
+
 ## Contributing
 
 The package is developed using its own workflow. The day-shift slash commands work in this repo (`/grill`, `/prd`, `/kanban`, `/tdd`, `/verify`, `/review`), and `/ralph` is available if you set `sandcastle.enabled: true` in your local `.hero/config.jsonc`. Pull requests welcome through the standard GitHub PR flow.

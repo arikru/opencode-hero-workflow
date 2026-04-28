@@ -5,6 +5,8 @@ description: Test-driven development with red-green-refactor loop. Use when user
 
 # Test-Driven Development
 
+Red, Green, Refactor. Focus on externally observable behaviour. Don't muddle through.
+
 ## Philosophy
 
 **Core principle**: Tests should verify behavior through public interfaces, not implementation details. Code can change entirely; tests shouldn't.

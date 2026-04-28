@@ -13,7 +13,7 @@ import { join } from "node:path";
 
 const PACKAGE_ROOT = new URL("..", import.meta.url).pathname;
 const INIT_SCRIPT = join(PACKAGE_ROOT, "bin", "init.js");
-const PINNED_PLUGIN_REF = "github:arikru/opencode-hero-workflow#v0.1.2";
+const PLUGIN_REF = "opencode-hero-workflow";
 
 const PACKAGE_VERSION = JSON.parse(
   readFileSync(join(PACKAGE_ROOT, "package.json"), "utf8"),
@@ -74,7 +74,7 @@ describe("hero-init baseline scaffold", () => {
     expect(existsSync(join(tempDir, ".opencode", "commands"))).toBe(true);
   });
 
-  test("creates opencode.json with default_agent plan and pinned plugin ref", () => {
+  test("creates opencode.json with default_agent plan and plugin ref", () => {
     runInit(tempDir);
 
     const opencodePath = join(tempDir, "opencode.json");
@@ -83,7 +83,7 @@ describe("hero-init baseline scaffold", () => {
     const parsed = JSON.parse(readFileSync(opencodePath, "utf8"));
     expect(parsed.default_agent).toBe("plan");
     expect(Array.isArray(parsed.plugin)).toBe(true);
-    expect(parsed.plugin).toContain(PINNED_PLUGIN_REF);
+    expect(parsed.plugin).toContain(PLUGIN_REF);
   });
 
   test("merges into an existing opencode.json without dropping unrelated keys", () => {
@@ -99,7 +99,7 @@ describe("hero-init baseline scaffold", () => {
     const parsed = JSON.parse(readFileSync(opencodePath, "utf8"));
     expect(parsed.theme).toBe("tokyonight");
     expect(parsed.default_agent).toBe("plan");
-    expect(parsed.plugin).toContain(PINNED_PLUGIN_REF);
+    expect(parsed.plugin).toContain(PLUGIN_REF);
   });
 });
 
@@ -120,7 +120,7 @@ describe("hero-init model-role prompts", () => {
     const configPath = join(tempDir, ".hero", "config.jsonc");
     const parsed = JSON.parse(readFileSync(configPath, "utf8"));
 
-    expect(parsed.version).toBe("0.1.2");
+    expect(parsed.version).toBe(PACKAGE_VERSION);
     expect(parsed.models).toEqual(DEFAULT_MODELS);
   });
 

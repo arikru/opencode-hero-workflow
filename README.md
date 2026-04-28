@@ -134,7 +134,7 @@ The plugin registers the following runtime hooks with OpenCode at startup:
 - **Sandcastle**: no streaming UX during AFK runs (logs appear as chunks); no session resume; no per-iteration token usage when using the OpenCode agent provider. Tracked upstream.
 - **Token estimation**: heuristic (character-count divided by four), labelled "approximate" everywhere it surfaces.
 - **Windows**: not a target. Native Linux and macOS only.
-- **Public registry**: not published to npm. Distributed via git tag.
+- **Public registry**: published to npm; git-tag install remains available for pinned-source installs.
 
 ## Upgrading
 

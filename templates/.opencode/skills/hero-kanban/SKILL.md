@@ -5,7 +5,7 @@ description: Break a plan, spec, or PRD into independently-grabbable GitHub issu
 
 # To Issues
 
-Break a plan into independently-grabbable GitHub issues using vertical slices (tracer bullets).
+Break a plan into independently-grabbable GitHub issues using vertical slices (tracer bullets). Don't fan out tickets by layer.
 
 ## Process
 
@@ -52,6 +52,8 @@ Iterate until the user approves the breakdown.
 For each approved slice, create a GitHub issue using `gh issue create`. Use the issue body template below.
 
 Create issues in dependency order (blockers first) so you can reference real issue numbers in the "Blocked by" field.
+
+Add the `hero:ready` label to issues that are AFK-ready and unblocked.
 
 <issue-template>
 ## Parent

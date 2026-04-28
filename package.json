@@ -1,8 +1,20 @@
 {
   "name": "opencode-hero-workflow",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "type": "module",
   "description": "OpenCode workflow scaffold encoding Matt Pocock's Essential Skills for AI Coding.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/arikru/opencode-hero-workflow.git"
+  },
+  "homepage": "https://github.com/arikru/opencode-hero-workflow#readme",
+  "keywords": [
+    "opencode",
+    "ai-coding",
+    "workflow",
+    "scaffold"
+  ],
+  "license": "MIT",
   "bin": {
     "hero-init": "./bin/init.js"
   },

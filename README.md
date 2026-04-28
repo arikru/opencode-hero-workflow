@@ -199,7 +199,18 @@ It does not remove:
 
 ## Upgrading
 
-Re-run `bunx opencode-hero-workflow@latest init --migrate` to pull in new defaults from a compatible release without overwriting files you have customised. The scaffolder uses a SHA-256 content-hash manifest to detect drift and refuses to clobber edited files; pass `--force` only when you have reviewed the diff and want to reset. If you prefer pinned installs, use an explicit package version (for example `bunx opencode-hero-workflow@0.2.0 init`). Major-version bumps may require a manual migration step; consult the CHANGELOG for the target version once one exists.
+Re-run `bunx opencode-hero-workflow@latest init --migrate` to pull in new defaults from a compatible release without overwriting files you have customised. The scaffolder uses a SHA-256 content-hash manifest to detect drift and refuses to clobber edited files; pass `--force` only when you have reviewed the diff and want to reset. If you prefer pinned installs, use an explicit package version (for example `bunx opencode-hero-workflow@0.2.1 init`). Major-version bumps may require a manual migration step; consult the CHANGELOG for the target version once one exists.
+
+### Cutting a release (maintainers)
+
+Releases are published to npm by a tag-driven GitHub Actions workflow (`.github/workflows/publish.yml`). To cut one:
+
+1. Bump `version` in `package.json` and merge to `main`.
+2. Wait for the `CI` workflow on `main` to go green (it runs `bun test` and `bun run build:schema`).
+3. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+4. Watch the `Publish` workflow. It re-runs the tests, verifies the tag matches `package.json`, refuses to re-publish a version already on npm, then runs `npm publish --access public`.
+
+If a publish fails after the tag is pushed, fix the underlying issue, bump to the next patch version, and tag again. Do not force-push tags or attempt to re-publish the same version — the guard in the workflow will reject it.
 
 ## Contributing
 

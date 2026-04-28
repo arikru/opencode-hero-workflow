@@ -61,13 +61,17 @@ describe("README.md", () => {
 
   test("contains a fenced code block with the bunx install one-liner", () => {
     const body = readReadme();
-    // Find every fenced code block and check at least one carries both tokens.
+    // Find every fenced code block and check at least one carries an
+    // install one-liner. We accept either the npm form
+    // (`bunx opencode-hero-workflow[@version] init`) or the GitHub form
+    // (`bunx github:owner/repo[#ref] init`) so README authors can switch
+    // between distribution channels without breaking the structural guard.
     const blocks = body.split(/```/);
     // Even-indexed entries are outside fences; odd-indexed are inside.
     const fenced = blocks.filter((_, idx) => idx % 2 === 1);
-    const hasInstall = fenced.some(
-      (block) => block.includes("bunx github:") && block.includes("init"),
-    );
+    const installPattern =
+      /bunx\s+(opencode-hero-workflow(@[^\s]+)?|github:[^\s]+)\s+[^\n`]*\binit\b/;
+    const hasInstall = fenced.some((block) => installPattern.test(block));
     expect(hasInstall).toBe(true);
   });
 

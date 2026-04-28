@@ -15,6 +15,7 @@ import { join } from "node:path";
 const PACKAGE_ROOT = new URL("..", import.meta.url).pathname;
 const INIT_SCRIPT = join(PACKAGE_ROOT, "bin", "init.js");
 const PLUGIN_REF = "opencode-hero-workflow";
+const LEGACY_PLUGIN_REF = "github:arikru/opencode-hero-workflow#v0.1.2";
 
 const PACKAGE_VERSION = JSON.parse(
   readFileSync(join(PACKAGE_ROOT, "package.json"), "utf8"),
@@ -180,6 +181,82 @@ describe("hero-init global mode (default)", () => {
     expect(conflict.status).not.toBe(0);
     expect(conflict.stderr).toContain("hero/config.jsonc");
     expect(conflict.stderr).toContain("--force");
+  });
+
+  test("uninstalls cleanly and prunes empty managed directories", () => {
+    runInit([...modelFlags()], { homeDir, cwd: projectDir });
+
+    const globalRoot = join(homeDir, ".config", "opencode");
+    const opencodePath = join(globalRoot, "opencode.json");
+    writeFileSync(
+      opencodePath,
+      JSON.stringify(
+        {
+          default_agent: "code",
+          command: {
+            "custom:hello": "say hi",
+            "hero:grill-me": "old hero command",
+          },
+          plugin: ["other-plugin", PLUGIN_REF, LEGACY_PLUGIN_REF],
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+
+    const result = runInit(["--uninstall"], { homeDir, cwd: projectDir });
+    expect(result.stdout).toContain("Uninstall removed");
+    expect(result.stdout).toContain("Uninstall skipped 0 modified file(s).");
+
+    expect(existsSync(join(globalRoot, "hero", "config.jsonc"))).toBe(false);
+    expect(existsSync(join(globalRoot, "skills", "hero-grill", "SKILL.md"))).toBe(false);
+    expect(existsSync(join(globalRoot, "skills"))).toBe(false);
+    expect(existsSync(join(globalRoot, "hero", ".manifest.json"))).toBe(true);
+
+    const parsed = readJson(opencodePath);
+    expect(parsed.default_agent).toBe("code");
+    expect(parsed.command["custom:hello"]).toBe("say hi");
+    expect(parsed.command["hero:grill-me"]).toBeUndefined();
+    expect(parsed.plugin).toContain("other-plugin");
+    expect(parsed.plugin).not.toContain(PLUGIN_REF);
+    expect(parsed.plugin).not.toContain(LEGACY_PLUGIN_REF);
+  });
+
+  test("uninstall skips modified files and reports them", () => {
+    runInit([...modelFlags()], { homeDir, cwd: projectDir });
+
+    const globalRoot = join(homeDir, ".config", "opencode");
+    const configPath = join(globalRoot, "hero", "config.jsonc");
+    writeFileSync(configPath, "{\n  \"version\": \"custom\"\n}\n", "utf8");
+
+    const result = runInit(["--uninstall"], { homeDir, cwd: projectDir });
+    expect(result.stdout).toContain("Uninstall skipped 1 modified file(s).");
+    expect(result.stdout).toContain("skipped-modified: hero/config.jsonc");
+    expect(result.stdout).toContain("Some files were skipped because they were modified");
+    expect(result.stderr).toContain("skipped modified file: hero/config.jsonc");
+    expect(existsSync(configPath)).toBe(true);
+  });
+
+  test("uninstall ignores already absent files", () => {
+    runInit([...modelFlags()], { homeDir, cwd: projectDir });
+
+    const globalRoot = join(homeDir, ".config", "opencode");
+    const removedAlready = join(globalRoot, "skills", "hero-grill", "SKILL.md");
+    rmSync(removedAlready, { force: true });
+
+    const result = runInit(["--uninstall"], { homeDir, cwd: projectDir });
+    expect(result.stdout).toContain("Uninstall removed");
+    expect(result.stdout).toContain("Uninstall skipped 0 modified file(s).");
+    expect(result.stdout).not.toContain("skipped-modified:");
+    expect(result.stderr).toBe("");
+  });
+
+  test("uninstall aborts clearly when manifest is missing", () => {
+    const result = runInitRaw(["--uninstall"], { homeDir, cwd: projectDir });
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("Cannot uninstall: missing manifest");
+    expect(result.stderr).toContain(join(homeDir, ".config", "opencode", "hero", ".manifest.json"));
   });
 });
 

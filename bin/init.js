@@ -8,7 +8,7 @@
 // manifest. New managed files should route through it.
 
 import { existsSync, readdirSync, statSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rmdir, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -22,6 +22,7 @@ const GLOBAL_MANIFEST_REL = "hero/.manifest.json";
 
 // Pinned git tag — the literal pin is the deliverable. No floating branch refs.
 const PLUGIN_REF = "opencode-hero-workflow";
+const LEGACY_PLUGIN_REF = "github:arikru/opencode-hero-workflow#v0.1.2";
 
 const MODEL_ROLES = /** @type {const} */ ([
   { key: "implementer", label: "Implementer", example: "github-copilot/claude-sonnet-4.5" },
@@ -150,7 +151,7 @@ async function writeManagedFile(targetDir, relPath, buf) {
   await writeFile(dest, buf);
 }
 
-async function patchOpencodeJson(targetDir, installMode) {
+async function patchOpencodeJson(targetDir, installMode, action = "install") {
   const path = join(targetDir, "opencode.json");
   /** @type {Record<string, unknown>} */
   let config = {};
@@ -170,8 +171,12 @@ async function patchOpencodeJson(targetDir, installMode) {
     }
   }
 
+  if (action === "uninstall" && !existed) {
+    return;
+  }
+
   const before = existed ? JSON.stringify(config) : null;
-  if (installMode === "local") {
+  if (action === "install" && installMode === "local") {
     config.default_agent = "plan";
   }
 
@@ -185,12 +190,16 @@ async function patchOpencodeJson(targetDir, installMode) {
   } else {
     plugins = [];
   }
-  if (!plugins.includes(PLUGIN_REF)) {
-    plugins.push(PLUGIN_REF);
+  if (action === "install") {
+    if (!plugins.includes(PLUGIN_REF)) {
+      plugins.push(PLUGIN_REF);
+    }
+  } else {
+    plugins = plugins.filter((p) => p !== PLUGIN_REF && p !== LEGACY_PLUGIN_REF);
   }
   config.plugin = plugins;
 
-  if (installMode === "global") {
+  if (action === "install" && installMode === "global") {
     const existingCommand = config.command;
     /** @type {Record<string, unknown>} */
     const commands =
@@ -203,6 +212,17 @@ async function patchOpencodeJson(targetDir, installMode) {
       }
     }
     config.command = commands;
+  } else if (action === "uninstall") {
+    const existingCommand = config.command;
+    if (existingCommand && typeof existingCommand === "object" && !Array.isArray(existingCommand)) {
+      const commands = /** @type {Record<string, unknown>} */ ({ ...existingCommand });
+      for (const key of Object.keys(commands)) {
+        if (key.startsWith("hero:")) {
+          delete commands[key];
+        }
+      }
+      config.command = commands;
+    }
   }
 
   const after = JSON.stringify(config);
@@ -213,12 +233,77 @@ async function patchOpencodeJson(targetDir, installMode) {
   console.log(existed ? "patched opencode.json" : "wrote opencode.json");
 }
 
+async function pruneEmptyParents(targetDir, removedPath) {
+  let current = dirname(removedPath);
+  while (current !== targetDir) {
+    const rel = relative(targetDir, current);
+    if (rel === "" || rel.startsWith("..") || rel.startsWith(`..${sep}`)) {
+      break;
+    }
+    if (!existsSync(current)) {
+      current = dirname(current);
+      continue;
+    }
+    if (readdirSync(current).length > 0) {
+      break;
+    }
+    await rmdir(current);
+    current = dirname(current);
+  }
+}
+
+async function uninstallGlobal(targetDir) {
+  const manifestPath = join(targetDir, GLOBAL_MANIFEST_REL);
+  if (!existsSync(manifestPath)) {
+    throw new Error(`Cannot uninstall: missing manifest at ${manifestPath}`);
+  }
+
+  const manifest = await readManifest(targetDir, GLOBAL_MANIFEST_REL);
+  /** @type {string[]} */
+  const removed = [];
+  /** @type {string[]} */
+  const skippedModified = [];
+
+  for (const relPath of Object.keys(manifest.files).sort()) {
+    const dest = join(targetDir, relPath);
+    if (!existsSync(dest)) continue;
+
+    const diskHash = sha256(await readFile(dest));
+    if (diskHash !== manifest.files[relPath]) {
+      skippedModified.push(relPath);
+      console.warn(`skipped modified file: ${relPath}`);
+      continue;
+    }
+
+    await unlink(dest);
+    removed.push(relPath);
+    await pruneEmptyParents(targetDir, dest);
+  }
+
+  await patchOpencodeJson(targetDir, "global", "uninstall");
+
+  console.log(`Uninstall removed ${removed.length} managed file(s).`);
+  if (removed.length > 0) {
+    for (const relPath of removed) {
+      console.log(`  removed: ${relPath}`);
+    }
+  }
+
+  console.log(`Uninstall skipped ${skippedModified.length} modified file(s).`);
+  if (skippedModified.length > 0) {
+    for (const relPath of skippedModified) {
+      console.log(`  skipped-modified: ${relPath}`);
+    }
+    console.log("Some files were skipped because they were modified; remove them manually if desired.");
+  }
+}
+
 function parseFlags(argv) {
   /** @type {Record<string, string | boolean>} */
   const flags = {};
   /** @type {string[]} */
   const positional = [];
-  const booleanFlags = new Set(["force", "migrate", "sandcastle-enabled", "local"]);
+  const booleanFlags = new Set(["force", "migrate", "sandcastle-enabled", "local", "uninstall"]);
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg.startsWith("--")) {
@@ -436,8 +521,13 @@ function reconcileMissingManagedFiles(targetDir, manifest, expectedRelPaths) {
 async function main() {
   const { flags, positional } = parseFlags(process.argv.slice(2));
   const explicitLocal = flags.local === true;
+  const uninstall = flags.uninstall === true;
   const hasPositionalTarget = positional.length > 0;
   const installMode = explicitLocal ? "local" : "global";
+
+  if (uninstall && explicitLocal) {
+    throw new Error("--uninstall supports global mode only; remove --local.");
+  }
 
   if (hasPositionalTarget && !explicitLocal) {
     console.log("hero-init: ignoring positional target path without --local; installing globally under ~/.config/opencode.");
@@ -447,6 +537,11 @@ async function main() {
   const targetDir =
     installMode === "global" ? resolve(homedir(), ".config", "opencode") : resolve(targetArg);
   const manifestRelPath = installMode === "global" ? GLOBAL_MANIFEST_REL : LOCAL_MANIFEST_REL;
+
+  if (uninstall) {
+    await uninstallGlobal(targetDir);
+    return;
+  }
 
   const force = flags.force === true;
   const migrate = flags.migrate === true;

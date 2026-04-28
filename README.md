@@ -1,14 +1,25 @@
 # opencode-hero-workflow
 
-An opinionated OpenCode workflow scaffold that encodes Matt Pocock's "Essential Skills for AI Coding from Planning to Production" as a concrete set of slash commands, agent skills, plugin hooks, and an optional Sandcastle AFK runner. Install it once per project and you get a complete day-shift (human-in-the-loop) and night-shift (autonomous) pipeline driven from `.hero/config.jsonc`.
+An opinionated AI-coding workflow scaffold for **OpenCode** and **Claude Code**, encoding Matt Pocock's "Essential Skills for AI Coding from Planning to Production" as a concrete set of slash commands, agent skills, plugin hooks, and an optional Sandcastle AFK runner. Install once globally and run the same day-shift (human-in-the-loop) and night-shift (autonomous) pipeline across every project.
 
 ## What is Hero?
 
-Hero is a distributable scaffold, not a framework. It installs file artifacts (slash commands, skills, scripts, templates) into your project's `.opencode/` and `.hero/` directories, plus a small OpenCode plugin that adds runtime hooks. There is no daemon, no service, no lock-in: deleting `.hero/` and removing the plugin reference from `opencode.json` reverts your project.
+Hero is a distributable scaffold, not a framework. For OpenCode, `bunx opencode-hero-workflow init` writes file artifacts (slash commands, skills, scripts, templates) into `~/.config/opencode/` and registers a small plugin that adds runtime hooks; per-repo overrides live in `<project>/.hero/config.jsonc`. For Claude Code, `claude plugin install hero@opencode-hero-workflow` registers the same commands and skills as a managed plugin. There is no daemon, no service, no lock-in — each runtime has a clean uninstall path.
 
 The workflow is structured around four habits drawn from Pocock's talk. Smart-zone discipline: keep the conversation under ~80K tokens and prefer `/clear` over compaction. Vertical-slice TDD: one issue, one tracer-bullet feature, red-green-refactor. Push-style code review: a fresh subagent context using a separate reviewer model audits diffs before they land. AFK runs via Sandcastle: when you stop typing, `/ralph` keeps picking ready issues and implementing them.
 
-The split between day-shift and night-shift is deliberate. Day-shift is interactive: you are the planner, the agent is the implementer, and slash commands drive the loop. Night-shift removes you from the loop entirely; the agent picks issues from a GitHub board, runs the same TDD discipline inside a sandbox, and surfaces results when you come back.
+The split between day-shift and night-shift is deliberate. Day-shift is interactive: you are the planner, the agent is the implementer, and slash commands drive the loop. Night-shift removes you from the loop entirely; the agent picks issues from a GitHub board, runs the same TDD discipline inside a sandbox, and surfaces results when you come back. Night-shift (`/ralph`) is OpenCode-only.
+
+### Runtime support
+
+| Feature | OpenCode | Claude Code |
+| --- | :---: | :---: |
+| Slash commands & skills (day-shift loop) | ✓ | ✓ |
+| `.hero/config.jsonc` per-repo overrides | ✓ | — |
+| Post-edit verify hook | ✓ | — |
+| Smart-zone token-budget toasts | ✓ | — |
+| `.env` / force-push guardrails | ✓ | — |
+| Sandcastle AFK runner (`/ralph`) | ✓ | — |
 
 ## Install
 
@@ -18,58 +29,17 @@ The split between day-shift and night-shift is deliberate. Day-shift is interact
 bunx opencode-hero-workflow@latest init
 ```
 
-### Claude Code
-
-Hero is also distributed as a Claude Code plugin via a marketplace manifest at the repo root. You get the slash commands (`/hero:grill`, `/hero:tdd`, etc.) and underlying skills, but not the runtime hooks, verify loop, guardrails, or token-budget toasts — those are OpenCode-only.
-
-**Install (canonical):**
-
-```sh
-claude plugin marketplace add arikru/opencode-hero-workflow
-claude plugin install hero@opencode-hero-workflow
-```
-
-The first command registers the marketplace by cloning `arikru/opencode-hero-workflow` into Claude Code's plugin cache; the second installs the `hero` plugin and writes `enabledPlugins` to your user `settings.json` automatically. Update with `claude plugin update hero@opencode-hero-workflow`; remove with `claude plugin uninstall hero@opencode-hero-workflow` (and `claude plugin marketplace remove opencode-hero-workflow`).
-
-**Try without installing (per session):**
-
-```sh
-claude --plugin-dir /path/to/opencode-hero-workflow/.opencode
-```
-
-Useful for hacking on the plugin locally without touching global state.
-
-**Available commands in Claude Code:**
-
-| Command | What it does |
-| --- | --- |
-| `/hero:grill <topic>` | Alignment interview that resolves every branch of a plan or design decision tree. |
-| `/hero:dogfood [seed]` | Exercise a feature happy-path → adversarial → source read → HTML report. |
-| `/hero:prd` | Synthesise the current context into a PRD GitHub issue. |
-| `/hero:kanban [issue]` | Break a plan or PRD into vertical-slice GitHub issues. |
-| `/hero:pick-task` | Select the highest-priority unblocked `hero:ready` issue. |
-| `/hero:tdd <issue>` | Drive red-green-refactor on the chosen issue. |
-| `/hero:review <pr-or-branch>` | Fresh-context audit using push-style reviewer standards. |
-| `/hero:architecture-scan` | Propose deep-module consolidations for shallow clusters. |
-| `/hero:context-status` | Approximate token usage and smart-zone reminder. |
-| `/hero:mark-issue-done` | Close the active issue with a completion comment. |
-| `/hero:verify` | Run the project's verify suite and interpret results. |
-
-`/hero:ralph` is bundled but Sandcastle-dependent and intended for OpenCode; it will not run useful work from a Claude Code session.
-
----
-
 The default install mode is global (`~/.config/opencode`). The `init` flow prompts for the three model roles (`implementer`, `reviewer`, `planner`) so you can pick any OpenCode-supported provider, e.g. `github-copilot/claude-sonnet-4.5`. It writes:
 
 - `~/.config/opencode/hero/config.jsonc` and `~/.config/opencode/hero/.hero-version`.
 - `~/.config/opencode/skills/**` (all Hero skills, namespaced under `hero-*`).
 - `~/.config/opencode/opencode.json` updates:
   - `plugin` includes `opencode-hero-workflow`.
-  - `command` includes all `hero:*` skill commands (global command aliases).
+  - `command` includes all `hero:*` skill commands (see [`hero:*` global commands](#hero-global-commands) below).
 
 Re-run with `--migrate` to pull in new defaults during a compatible upgrade without clobbering customisations. Use `--force` only after reviewing the diff: it overrides the SHA-256 content-hash conflict refusal that protects files you have edited locally.
 
-### `hero:*` global commands
+#### `hero:*` global commands
 
 Global install adds these command aliases to `~/.config/opencode/opencode.json`:
 
@@ -82,6 +52,27 @@ Global install adds these command aliases to `~/.config/opencode/opencode.json`:
 | `hero:reviewer-standards` | Load the `hero-reviewer-standards` skill and audit the diff with push-style review standards. |
 | `hero:dogfood` | Load the `hero-dogfood` skill and run a happy-path to adversarial dogfooding session. |
 | `hero:to-prd` | Load the `hero-to-prd` skill and turn the current context into a PRD GitHub issue. |
+
+### Claude Code
+
+Hero is distributed as a Claude Code plugin via a marketplace manifest at the repo root.
+
+```sh
+claude plugin marketplace add arikru/opencode-hero-workflow
+claude plugin install hero@opencode-hero-workflow
+```
+
+The first command registers the marketplace by cloning `arikru/opencode-hero-workflow` into Claude Code's plugin cache; the second installs the `hero` plugin and writes `enabledPlugins` to your user `settings.json` automatically. Update with `claude plugin update hero@opencode-hero-workflow`; remove with `claude plugin uninstall hero@opencode-hero-workflow` (and `claude plugin marketplace remove opencode-hero-workflow`).
+
+Commands are namespaced under `hero:` — every entry in the [day-shift commands](#day-shift-commands) table is invoked as `/hero:<name>` in Claude Code (so `/grill` becomes `/hero:grill`, `/tdd` becomes `/hero:tdd`). `/hero:ralph` is bundled but Sandcastle-dependent and won't run useful work from a Claude Code session.
+
+#### Try without installing (per session)
+
+```sh
+claude --plugin-dir /path/to/opencode-hero-workflow/.opencode
+```
+
+Useful for hacking on the plugin locally without touching global state.
 
 ## Configuration
 
@@ -127,6 +118,8 @@ You can override any top-level schema key (`version`, `models`, `stack`, `verify
 ## Day-shift commands
 
 The day-shift loop is align then PRD then kanban then tdd then review. Each step is a slash command that loads a corresponding skill. You can break out of the loop at any point — the commands are independent, but the order is the recommended path for a new feature.
+
+The names below are the OpenCode form. In Claude Code, prefix each with `hero:` (`/grill` → `/hero:grill`). OpenCode's global install also exposes longer `hero:*` aliases — see [`hero:*` global commands](#hero-global-commands).
 
 | Command | What it does |
 | --- | --- |
@@ -191,7 +184,7 @@ The plugin registers the following runtime hooks with OpenCode at startup:
 
 ## Uninstall
 
-Run:
+### OpenCode
 
 ```sh
 hero-init --uninstall
@@ -203,6 +196,15 @@ It does not remove:
 
 - Files you modified after install (these are skipped for safety).
 - Project-local runtime state such as `<project>/.hero/state.json`.
+
+### Claude Code
+
+```sh
+claude plugin uninstall hero@opencode-hero-workflow
+claude plugin marketplace remove opencode-hero-workflow
+```
+
+The first command removes the plugin and clears its entry from `enabledPlugins`; the second unregisters the marketplace from `extraKnownMarketplaces` in your user `settings.json`.
 
 ## Upgrading
 
@@ -238,7 +240,7 @@ The workflow keeps `NODE_AUTH_TOKEN` wired up so that step 1 works without chang
 
 ## Contributing
 
-The package is developed using its own workflow. The day-shift slash commands work in this repo (`/grill`, `/prd`, `/kanban`, `/tdd`, `/verify`, `/review`), and `/ralph` is available if you set `sandcastle.enabled: true` in your local `.hero/config.jsonc`. Pull requests welcome through the standard GitHub PR flow.
+The package is developed using its own workflow. Day-shift slash commands (`/grill`, `/prd`, `/kanban`, `/tdd`, `/verify`, `/review`) work in this repo from OpenCode, and the same commands prefixed with `hero:` work in Claude Code (after `claude plugin install hero@opencode-hero-workflow`). `/ralph` is OpenCode-only and requires `sandcastle.enabled: true` in your local `.hero/config.jsonc`. Pull requests welcome through the standard GitHub PR flow.
 
 ## Credits
 

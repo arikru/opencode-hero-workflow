@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: bun install
+        run: bun install
+
+      - name: bun test
+        run: bun test
+
+      - name: bun run build:schema
+        run: bun run build:schema
+
+      - name: ensure schema is up to date
+        run: |
+          if ! git diff --quiet -- schemas/; then
+            echo "::error::schemas/ is out of date. Run 'bun run build:schema' and commit the result."
+            git diff -- schemas/
+            exit 1
+          fi

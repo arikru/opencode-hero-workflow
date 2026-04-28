@@ -6,10 +6,10 @@ on:
       - "v*"
 
 # id-token: write is required for npm trusted publishing (OIDC).
-# contents: read is the default minimum after id-token is requested.
+# contents: write is required to create the GitHub Release after publish.
 permissions:
   id-token: write
-  contents: read
+  contents: write
 
 jobs:
   publish:
@@ -71,3 +71,15 @@ jobs:
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # Idempotent so reruns of a partially-failed publish don't error out;
+      # --generate-notes auto-populates from PRs/commits since the last tag.
+      - name: create GitHub Release
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "release $GITHUB_REF_NAME already exists, skipping"
+          else
+            gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes --title "$GITHUB_REF_NAME"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}

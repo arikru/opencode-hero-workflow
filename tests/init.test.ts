@@ -27,13 +27,13 @@ const DEFAULT_MODELS = {
 };
 
 const HERO_COMMAND_KEYS = [
-  "hero:hero-grill",
-  "hero:hero-tdd-loop",
-  "hero:hero-kanban",
-  "hero:hero-improve-architecture",
-  "hero:hero-reviewer-standards",
-  "hero:hero-dogfood",
-  "hero:hero-to-prd",
+  "hero:grill-me",
+  "hero:tdd-loop",
+  "hero:kanban",
+  "hero:improve-architecture",
+  "hero:reviewer-standards",
+  "hero:dogfood",
+  "hero:to-prd",
 ];
 
 function modelFlags(overrides: Partial<typeof DEFAULT_MODELS> = {}) {

@@ -20,7 +20,7 @@ bunx github:arikru/opencode-hero-workflow#v0.1.0 init
 
 ### Claude Code
 
-Hero skills are also available as a Claude Code plugin. This gives you the skills (`/hero:hero-grill`, `/hero:hero-tdd-loop`, etc.) but not the runtime hooks, verify loop, or token-budget toasts — those are OpenCode-only.
+Hero skills are also available as a Claude Code plugin. This gives you the skills (`/hero:grill-me`, `/hero:tdd-loop`, etc.) but not the runtime hooks, verify loop, or token-budget toasts — those are OpenCode-only.
 
 **Install per session:**
 
@@ -42,13 +42,13 @@ Add to your project's `.claude/settings.json`:
 
 | Skill | Invocation |
 | --- | --- |
-| Grill / alignment | `/hero:hero-grill` |
-| TDD loop | `/hero:hero-tdd-loop` |
-| Kanban breakdown | `/hero:hero-kanban` |
-| Architecture scan | `/hero:hero-improve-architecture` |
-| Code review | `/hero:hero-reviewer-standards` |
-| Dogfood | `/hero:hero-dogfood` |
-| PRD | `/hero:hero-to-prd` |
+| Grill / alignment | `/hero:grill-me` |
+| TDD loop | `/hero:tdd-loop` |
+| Kanban breakdown | `/hero:kanban` |
+| Architecture scan | `/hero:improve-architecture` |
+| Code review | `/hero:reviewer-standards` |
+| Dogfood | `/hero:dogfood` |
+| PRD | `/hero:to-prd` |
 
 ---
 

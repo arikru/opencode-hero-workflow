@@ -30,13 +30,13 @@ const MODEL_ROLES = /** @type {const} */ ([
 ]);
 
 const GLOBAL_HERO_COMMANDS = /** @type {const} */ ({
-  "hero:hero-grill": "Load the `hero-grill` skill and start an alignment session on the user-provided topic.",
-  "hero:hero-tdd-loop": "Load the `hero-tdd-loop` skill and run a red-green-refactor loop for the selected GitHub issue.",
-  "hero:hero-kanban": "Load the `hero-kanban` skill and break the current plan or PRD into vertical-slice GitHub issues.",
-  "hero:hero-improve-architecture": "Load the `hero-improve-architecture` skill and scan the codebase for deepening opportunities.",
-  "hero:hero-reviewer-standards": "Load the `hero-reviewer-standards` skill and audit the diff with push-style review standards.",
-  "hero:hero-dogfood": "Load the `hero-dogfood` skill and run a happy-path to adversarial dogfooding session.",
-  "hero:hero-to-prd": "Load the `hero-to-prd` skill and turn the current context into a PRD GitHub issue.",
+  "hero:grill-me": "Load the `hero-grill` skill and start an alignment session on the user-provided topic.",
+  "hero:tdd-loop": "Load the `hero-tdd-loop` skill and run a red-green-refactor loop for the selected GitHub issue.",
+  "hero:kanban": "Load the `hero-kanban` skill and break the current plan or PRD into vertical-slice GitHub issues.",
+  "hero:improve-architecture": "Load the `hero-improve-architecture` skill and scan the codebase for deepening opportunities.",
+  "hero:reviewer-standards": "Load the `hero-reviewer-standards` skill and audit the diff with push-style review standards.",
+  "hero:dogfood": "Load the `hero-dogfood` skill and run a happy-path to adversarial dogfooding session.",
+  "hero:to-prd": "Load the `hero-to-prd` skill and turn the current context into a PRD GitHub issue.",
 });
 
 async function readPackageVersion() {

@@ -123,11 +123,43 @@ describe("hero-init global mode (default)", () => {
     expect(parsed.plugin).toContain(PLUGIN_REF);
     expect(parsed.default_agent).toBeUndefined();
     for (const key of HERO_COMMAND_KEYS) {
-      expect(parsed.command[key]).toEqual(expect.any(String));
+      const entry = parsed.command[key];
+      expect(entry).toEqual(expect.any(Object));
+      expect(typeof entry.template).toBe("string");
+      expect(entry.template.length).toBeGreaterThan(0);
     }
 
     expect(existsSync(join(globalRoot, ".opencode", "commands"))).toBe(false);
     expect(existsSync(join(globalRoot, ".opencode", "commands", "grill.md"))).toBe(false);
+  });
+
+  test("upgrades legacy string-form hero:* command entries to object form", () => {
+    const globalRoot = join(homeDir, ".config", "opencode");
+    const opencodePath = join(globalRoot, "opencode.json");
+    mkdirSync(globalRoot, { recursive: true });
+    writeFileSync(
+      opencodePath,
+      JSON.stringify(
+        {
+          command: {
+            "hero:grill-me": "old string-form prompt that broke the schema",
+            "custom:hello": "say hi",
+          },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+
+    runInit([...modelFlags()], { homeDir, cwd: projectDir });
+
+    const parsed = readJson(opencodePath);
+    // Legacy string entry should be replaced with the proper object form.
+    expect(typeof parsed.command["hero:grill-me"]).toBe("object");
+    expect(typeof parsed.command["hero:grill-me"].template).toBe("string");
+    // Unrelated user entries are preserved as-is, even if they are strings.
+    expect(parsed.command["custom:hello"]).toBe("say hi");
   });
 
   test("merges opencode.json without clobbering unrelated keys or default_agent", () => {
@@ -156,7 +188,9 @@ describe("hero-init global mode (default)", () => {
     expect(parsed.default_agent).toBe("code");
     expect(parsed.command["custom:hello"]).toBe("say hi");
     for (const key of HERO_COMMAND_KEYS) {
-      expect(parsed.command[key]).toEqual(expect.any(String));
+      const entry = parsed.command[key];
+      expect(entry).toEqual(expect.any(Object));
+      expect(typeof entry.template).toBe("string");
     }
     expect(parsed.plugin).toContain("other-plugin");
     expect(parsed.plugin).toContain(PLUGIN_REF);

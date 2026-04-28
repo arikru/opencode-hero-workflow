@@ -73,22 +73,40 @@ function writeMinimalConfig(root: string): void {
   writeFileSync(join(root, ".hero", "config.jsonc"), MINIMAL_CONFIG, "utf8");
 }
 
+function writeMinimalGlobalConfig(homeRoot: string): void {
+  const dir = join(homeRoot, ".config", "opencode", "hero");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "config.jsonc"), MINIMAL_CONFIG, "utf8");
+}
+
 async function flushMicrotasks(): Promise<void> {
   await new Promise((r) => setImmediate(r));
 }
 
 describe("heroPlugin", () => {
   let tempDir: string;
+  let homeDir: string;
+  let previousHome: string | undefined;
 
   beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), "hero-plugin-index-"));
+    homeDir = mkdtempSync(join(tmpdir(), "hero-plugin-home-"));
+    previousHome = process.env.HOME;
+    process.env.HOME = homeDir;
   });
 
   afterEach(() => {
+    if (previousHome === undefined) {
+      delete process.env.HOME;
+    } else {
+      process.env.HOME = previousHome;
+    }
     rmSync(tempDir, { recursive: true, force: true });
+    rmSync(homeDir, { recursive: true, force: true });
   });
 
   test("happy path: returns full registration with all hooks, tools, and shellEnv", async () => {
+    writeMinimalGlobalConfig(homeDir);
     writeMinimalConfig(tempDir);
     const { ctx } = makeContext({ projectRoot: tempDir });
 
@@ -118,6 +136,7 @@ describe("heroPlugin", () => {
   });
 
   test("malformed config: toasts an error and returns an empty registration", async () => {
+    writeMinimalGlobalConfig(homeDir);
     mkdirSync(join(tempDir, ".hero"), { recursive: true });
     writeFileSync(
       join(tempDir, ".hero", "config.jsonc"),
@@ -137,21 +156,22 @@ describe("heroPlugin", () => {
     expect(reg.tools).toEqual([]);
   });
 
-  test("missing config file: toasts an error and returns an empty registration", async () => {
+  test("missing project config file: starts from global-only config", async () => {
+    writeMinimalGlobalConfig(homeDir);
     // No .hero/config.jsonc written at all.
     const { ctx, toastCalls } = makeContext({ projectRoot: tempDir });
 
     const reg = await heroPlugin(ctx);
 
     const errorToasts = toastCalls.filter((c) => c.severity === "error");
-    expect(errorToasts).toHaveLength(1);
-    expect(errorToasts[0].message).toMatch(/hero config/i);
+    expect(errorToasts).toHaveLength(0);
 
-    expect(reg.hooks).toEqual({});
-    expect(reg.tools).toEqual([]);
+    expect(typeof reg.hooks["tool.execute.before"]).toBe("function");
+    expect(reg.tools).toHaveLength(3);
   });
 
   test("version drift: toasts a warn-level message mentioning both versions", async () => {
+    writeMinimalGlobalConfig(homeDir);
     writeMinimalConfig(tempDir);
     writeFileSync(join(tempDir, ".hero", ".hero-version"), "0.0.9\n", "utf8");
     const { ctx, toastCalls } = makeContext({

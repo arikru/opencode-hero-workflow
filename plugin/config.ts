@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
 
@@ -71,23 +73,54 @@ function formatIssue(issue: z.ZodIssue): string {
   return `${path}: ${issue.message}`;
 }
 
-export async function loadHeroConfig(projectRoot: string): Promise<HeroConfig> {
-  const path = join(projectRoot, ".hero", "config.jsonc");
+function resolveGlobalConfigPath(): string {
+  const home = process.env.HOME ?? homedir();
+  return join(home, ".config", "opencode", "hero", "config.jsonc");
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function deepMerge(base: unknown, override: unknown): unknown {
+  if (isPlainObject(base) && isPlainObject(override)) {
+    const merged: Record<string, unknown> = { ...base };
+    for (const [key, value] of Object.entries(override)) {
+      merged[key] = key in merged ? deepMerge(merged[key], value) : value;
+    }
+    return merged;
+  }
+  return override;
+}
+
+async function readJsoncConfig(path: string, required: boolean): Promise<unknown | undefined> {
   let text: string;
   try {
-    text = await Bun.file(path).text();
+    text = await readFile(path, "utf8");
   } catch (err) {
+    const e = err as NodeJS.ErrnoException;
+    if (!required && e.code === "ENOENT") {
+      return undefined;
+    }
     const reason = err instanceof Error ? err.message : String(err);
     throw new HeroConfigError(`hero config: cannot read ${path}: ${reason}`);
   }
 
-  let raw: unknown;
   try {
-    raw = Bun.JSONC.parse(text);
+    return Bun.JSONC.parse(text);
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
     throw new HeroConfigError(`hero config: invalid JSONC at ${path}: ${reason}`);
   }
+}
+
+export async function loadHeroConfig(projectRoot: string): Promise<HeroConfig> {
+  const globalPath = resolveGlobalConfigPath();
+  const projectPath = join(projectRoot, ".hero", "config.jsonc");
+
+  const globalRaw = await readJsoncConfig(globalPath, true);
+  const projectRaw = await readJsoncConfig(projectPath, false);
+  const raw = projectRaw === undefined ? globalRaw : deepMerge(globalRaw, projectRaw);
 
   const parsed = HeroConfigSchema.safeParse(raw);
   if (!parsed.success) {

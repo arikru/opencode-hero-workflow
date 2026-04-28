@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
+import { fileURLToPath } from "node:url";
 
 import { createVerifyTool } from "../../plugin/tools/verify.ts";
+
+const PACKAGE_VERIFY_SCRIPT = fileURLToPath(
+  new URL("../../scripts/verify.sh", import.meta.url),
+);
 
 // Build a fake spawn we can drive: it captures the args it was called with and
 // returns a controllable result so each test can decide stdout/stderr/exit.
@@ -122,6 +127,30 @@ describe("createVerifyTool", () => {
     // The cmd argument should include the verify.sh path.
     const joined = calls[0]!.cmd.join(" ");
     expect(joined).toContain("scripts/verify.sh");
+  });
+
+  test("uses project scripts/verify.sh when it exists", async () => {
+    const { spawn, calls } = makeFakeSpawn({ exitCode: 0 });
+    const tool = createVerifyTool({
+      projectRoot: "/tmp/proj",
+      stack: "python",
+      spawn,
+      scriptExists: () => true,
+    });
+    await tool.execute({});
+    expect(calls[0]!.cmd[1]).toBe("/tmp/proj/scripts/verify.sh");
+  });
+
+  test("falls back to package scripts/verify.sh when project script is missing", async () => {
+    const { spawn, calls } = makeFakeSpawn({ exitCode: 0 });
+    const tool = createVerifyTool({
+      projectRoot: "/tmp/proj",
+      stack: "python",
+      spawn,
+      scriptExists: () => false,
+    });
+    await tool.execute({});
+    expect(calls[0]!.cmd[1]).toBe(PACKAGE_VERIFY_SCRIPT);
   });
 
   test("env passed to spawn includes HERO_PROJECT_ROOT and HERO_STACK", async () => {

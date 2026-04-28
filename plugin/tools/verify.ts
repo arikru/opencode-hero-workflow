@@ -1,7 +1,11 @@
-import { join } from "node:path";
-
 import type { HeroConfig } from "../config.ts";
 import type { CustomTool } from "../types.ts";
+import {
+  resolveVerifyScriptPath,
+  toVerifyResult,
+  type ScriptExistsFn,
+  type VerifyResult,
+} from "../verify/shared.ts";
 
 // Local SpawnFn shape — kept as a structural contract so tests inject a fake
 // without depending on Bun's spawn type. The default in createVerifyTool maps
@@ -19,9 +23,10 @@ export interface CreateVerifyToolOptions {
   projectRoot: string;
   stack: HeroConfig["stack"];
   spawn?: SpawnFn;
+  scriptExists?: ScriptExistsFn;
 }
 
-export type VerifyToolResult = { passed: boolean; output: string };
+export type VerifyToolResult = VerifyResult;
 
 async function readAll(stream: ReadableStream<Uint8Array>): Promise<string> {
   const reader = stream.getReader();
@@ -60,7 +65,7 @@ export function createVerifyTool(
   opts: CreateVerifyToolOptions,
 ): CustomTool<Record<string, never>, VerifyToolResult> {
   const spawn = opts.spawn ?? defaultSpawn;
-  const scriptPath = join(opts.projectRoot, "scripts", "verify.sh");
+  const scriptPath = resolveVerifyScriptPath(opts.projectRoot, opts.scriptExists);
 
   return {
     name: "verify",
@@ -78,9 +83,7 @@ export function createVerifyTool(
         readAll(proc.stdout),
         readAll(proc.stderr),
       ]);
-      const output =
-        stderrText.length > 0 ? `${stdoutText}\n${stderrText}` : stdoutText;
-      return { passed: exitCode === 0, output };
+      return toVerifyResult(exitCode, stdoutText, stderrText);
     },
   };
 }

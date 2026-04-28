@@ -1,8 +1,13 @@
 import { describe, expect, test } from "bun:test";
+import { fileURLToPath } from "node:url";
 
 import { createVerifyHook } from "../../plugin/hooks/verify.ts";
 import type { HeroConfig } from "../../plugin/config.ts";
 import type { AppLogApi, ToolExecuteAfterEvent } from "../../plugin/types.ts";
+
+const PACKAGE_VERIFY_SCRIPT = fileURLToPath(
+  new URL("../../scripts/verify.sh", import.meta.url),
+);
 
 type LogCall = {
   level: "info" | "warn" | "error";
@@ -84,7 +89,10 @@ const editEvent: ToolExecuteAfterEvent = {
 const writeEvent: ToolExecuteAfterEvent = { ...editEvent, tool: "write" };
 const readEvent: ToolExecuteAfterEvent = { ...editEvent, tool: "read" };
 
-function build(cfg: HeroConfig["verify"] = baseCfg) {
+function build(
+  cfg: HeroConfig["verify"] = baseCfg,
+  opts?: { scriptExists?: (path: string) => boolean },
+) {
   const sched = createFakeSchedule();
   const sp = createFakeSpawn();
   const calls: LogCall[] = [];
@@ -95,6 +103,7 @@ function build(cfg: HeroConfig["verify"] = baseCfg) {
     stack: "python",
     log,
     spawn: sp.spawn,
+    scriptExists: opts?.scriptExists,
     schedule: sched.schedule,
     now: sched.now,
   });
@@ -172,6 +181,20 @@ describe("createVerifyHook", () => {
     expect(calls.length).toBe(1);
     expect(calls[0].level).toBe("info");
     expect(calls[0].detail ?? "").toContain("all good");
+  });
+
+  test("uses project scripts/verify.sh when it exists", async () => {
+    const { sched, sp, hook } = build(baseCfg, { scriptExists: () => true });
+    await hook(editEvent);
+    sched.tick(5000);
+    expect(sp.calls[0]!.cmd[1]).toBe("/p/scripts/verify.sh");
+  });
+
+  test("falls back to package scripts/verify.sh when project script is missing", async () => {
+    const { sched, sp, hook } = build(baseCfg, { scriptExists: () => false });
+    await hook(editEvent);
+    sched.tick(5000);
+    expect(sp.calls[0]!.cmd[1]).toBe(PACKAGE_VERIFY_SCRIPT);
   });
 
   test("spawn exit non-zero: error level and stderr in detail", async () => {

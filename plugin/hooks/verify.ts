@@ -1,7 +1,10 @@
-import { join } from "node:path";
-
 import type { HeroConfig } from "../config.ts";
 import type { AppLogApi, ToolExecuteAfterHook } from "../types.ts";
+import {
+  resolveVerifyScriptPath,
+  toVerifyResult,
+  type ScriptExistsFn,
+} from "../verify/shared.ts";
 
 export interface Disposable {
   dispose(): void;
@@ -24,6 +27,7 @@ export interface VerifyHookOptions {
   stack: HeroConfig["stack"];
   log: AppLogApi;
   spawn?: SpawnFn;
+  scriptExists?: ScriptExistsFn;
   now?: () => number;
   schedule?: (fn: () => void, ms: number) => Disposable;
 }
@@ -62,6 +66,7 @@ export function createVerifyHook(opts: VerifyHookOptions): ToolExecuteAfterHook 
     stack,
     log,
     spawn = defaultSpawn,
+    scriptExists,
     schedule = defaultSchedule,
   } = opts;
 
@@ -75,7 +80,7 @@ export function createVerifyHook(opts: VerifyHookOptions): ToolExecuteAfterHook 
     HERO_STACK: stack,
   };
 
-  const verifyScript = join(projectRoot, "scripts", "verify.sh");
+  const verifyScript = resolveVerifyScriptPath(projectRoot, scriptExists);
 
   const runVerify = () => {
     pendingTimer = null;
@@ -83,14 +88,14 @@ export function createVerifyHook(opts: VerifyHookOptions): ToolExecuteAfterHook 
     const result = spawn(["bash", verifyScript], { env, cwd: projectRoot });
     void Promise.all([result.exited, result.stdoutText, result.stderrText])
       .then(async ([exitCode, stdout, stderr]) => {
-        const detail = [stdout, stderr].filter(Boolean).join("\n");
+        const result = toVerifyResult(exitCode, stdout, stderr);
         await log.log({
-          level: exitCode === 0 ? "info" : "error",
+          level: result.passed ? "info" : "error",
           message:
-            exitCode === 0
+            result.passed
               ? "hero verify: passed"
               : `hero verify: failed (exit ${exitCode})`,
-          detail,
+          detail: result.output,
         });
       })
       .catch(async (err) => {

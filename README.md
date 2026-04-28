@@ -138,7 +138,7 @@ The plugin registers the following runtime hooks with OpenCode at startup:
 
 ## Upgrading
 
-Re-run `bunx github:arikru/opencode-hero-workflow#vX.Y.Z init --migrate` to pull in new defaults from a compatible release without overwriting files you have customised. The scaffolder uses a SHA-256 content-hash manifest to detect drift and refuses to clobber edited files; pass `--force` only when you have reviewed the diff and want to reset. Major-version bumps may require a manual migration step; consult the CHANGELOG for the target tag once one exists.
+Re-run `bunx github:arikru/opencode-hero-workflow#vX.Y.Z init --migrate` to pull in new defaults from a compatible release without overwriting files you have customised. The scaffolder uses a SHA-256 content-hash manifest to detect drift and refuses to clobber edited files; pass `--force` only when you have reviewed the diff and want to reset. Releases are now cut by pushing a `v*` tag, which triggers GitHub Actions to run `bun test` and then `npm publish`. Major-version bumps may require a manual migration step; consult the CHANGELOG for the target tag once one exists.
 
 ## Contributing
 

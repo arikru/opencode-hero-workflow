@@ -30,14 +30,37 @@ const MODEL_ROLES = /** @type {const} */ ([
   { key: "planner", label: "Planner", example: "github-copilot/claude-sonnet-4.5" },
 ]);
 
+// Each entry follows the opencode commands schema: an object with at minimum a
+// `template` field (the prompt sent to the LLM). See https://opencode.ai/docs/commands/
 const GLOBAL_HERO_COMMANDS = /** @type {const} */ ({
-  "hero:grill-me": "Load the `hero-grill` skill and start an alignment session on the user-provided topic.",
-  "hero:tdd-loop": "Load the `hero-tdd-loop` skill and run a red-green-refactor loop for the selected GitHub issue.",
-  "hero:kanban": "Load the `hero-kanban` skill and break the current plan or PRD into vertical-slice GitHub issues.",
-  "hero:improve-architecture": "Load the `hero-improve-architecture` skill and scan the codebase for deepening opportunities.",
-  "hero:reviewer-standards": "Load the `hero-reviewer-standards` skill and audit the diff with push-style review standards.",
-  "hero:dogfood": "Load the `hero-dogfood` skill and run a happy-path to adversarial dogfooding session.",
-  "hero:to-prd": "Load the `hero-to-prd` skill and turn the current context into a PRD GitHub issue.",
+  "hero:grill-me": {
+    description: "Start a hero-grill alignment session on the user-provided topic.",
+    template: "Load the `hero-grill` skill and start an alignment session on the user-provided topic.",
+  },
+  "hero:tdd-loop": {
+    description: "Run a red-green-refactor loop for the selected GitHub issue.",
+    template: "Load the `hero-tdd-loop` skill and run a red-green-refactor loop for the selected GitHub issue.",
+  },
+  "hero:kanban": {
+    description: "Break the current plan or PRD into vertical-slice GitHub issues.",
+    template: "Load the `hero-kanban` skill and break the current plan or PRD into vertical-slice GitHub issues.",
+  },
+  "hero:improve-architecture": {
+    description: "Scan the codebase for architectural deepening opportunities.",
+    template: "Load the `hero-improve-architecture` skill and scan the codebase for deepening opportunities.",
+  },
+  "hero:reviewer-standards": {
+    description: "Audit the diff with push-style review standards.",
+    template: "Load the `hero-reviewer-standards` skill and audit the diff with push-style review standards.",
+  },
+  "hero:dogfood": {
+    description: "Run a happy-path to adversarial dogfooding session.",
+    template: "Load the `hero-dogfood` skill and run a happy-path to adversarial dogfooding session.",
+  },
+  "hero:to-prd": {
+    description: "Turn the current context into a PRD GitHub issue.",
+    template: "Load the `hero-to-prd` skill and turn the current context into a PRD GitHub issue.",
+  },
 });
 
 async function readPackageVersion() {
@@ -207,7 +230,10 @@ async function patchOpencodeJson(targetDir, installMode, action = "install") {
         ? { ...existingCommand }
         : {};
     for (const [key, value] of Object.entries(GLOBAL_HERO_COMMANDS)) {
-      if (!(key in commands)) {
+      const existing = commands[key];
+      // Upgrade legacy string entries (pre-schema-fix) to the object form, and
+      // backfill missing entries. Leave user-customised object entries alone.
+      if (existing === undefined || typeof existing === "string") {
         commands[key] = value;
       }
     }

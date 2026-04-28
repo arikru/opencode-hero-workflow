@@ -15,7 +15,7 @@ The split between day-shift and night-shift is deliberate. Day-shift is interact
 ### OpenCode
 
 ```sh
-bunx github:arikru/opencode-hero-workflow#v0.1.0 init
+bunx opencode-hero-workflow@latest init
 ```
 
 ### Claude Code
@@ -52,13 +52,38 @@ Add to your project's `.claude/settings.json`:
 
 ---
 
-Pin an exact tag. The package resolves via Bun's git URL spec, and floating refs (branches, `main`, `latest`) are not supported — upgrades must be deliberate. The `init` flow prompts for the three model roles (`implementer`, `reviewer`, `planner`) so you can pick any OpenCode-supported provider, e.g. `github-copilot/claude-sonnet-4.5`. It then patches `opencode.json` to set `default_agent: "plan"` and add the plugin reference, writes `.hero/config.jsonc` and `.hero/.hero-version`, and copies skills, commands, and scripts into place.
+The default install mode is global (`~/.config/opencode`). The `init` flow prompts for the three model roles (`implementer`, `reviewer`, `planner`) so you can pick any OpenCode-supported provider, e.g. `github-copilot/claude-sonnet-4.5`. It writes:
+
+- `~/.config/opencode/hero/config.jsonc` and `~/.config/opencode/hero/.hero-version`.
+- `~/.config/opencode/skills/**` (all Hero skills, namespaced under `hero-*`).
+- `~/.config/opencode/opencode.json` updates:
+  - `plugin` includes `opencode-hero-workflow`.
+  - `command` includes all `hero:*` skill commands (global command aliases).
 
 Re-run with `--migrate` to pull in new defaults during a compatible upgrade without clobbering customisations. Use `--force` only after reviewing the diff: it overrides the SHA-256 content-hash conflict refusal that protects files you have edited locally.
 
+### `hero:*` global commands
+
+Global install adds these command aliases to `~/.config/opencode/opencode.json`:
+
+| Command | What it does |
+| --- | --- |
+| `hero:grill-me` | Load the `hero-grill` skill and start an alignment session on the user-provided topic. |
+| `hero:tdd-loop` | Load the `hero-tdd-loop` skill and run a red-green-refactor loop for the selected GitHub issue. |
+| `hero:kanban` | Load the `hero-kanban` skill and break the current plan or PRD into vertical-slice GitHub issues. |
+| `hero:improve-architecture` | Load the `hero-improve-architecture` skill and scan the codebase for deepening opportunities. |
+| `hero:reviewer-standards` | Load the `hero-reviewer-standards` skill and audit the diff with push-style review standards. |
+| `hero:dogfood` | Load the `hero-dogfood` skill and run a happy-path to adversarial dogfooding session. |
+| `hero:to-prd` | Load the `hero-to-prd` skill and turn the current context into a PRD GitHub issue. |
+
 ## Configuration
 
-`.hero/config.jsonc` is the single source of truth for everything Hero-specific. It is Zod-validated at plugin startup; any malformed field surfaces a named path error before the plugin loads. A JSON Schema sidecar at `.hero/../node_modules/opencode-hero-workflow/schemas/hero-schema.json` powers editor autocomplete via the `$schema` reference embedded in the file.
+Hero loads config in two layers:
+
+1. Global base config from `~/.config/opencode/hero/config.jsonc`.
+2. Optional project-local override from `<project>/.hero/config.jsonc`.
+
+The plugin deep-merges local over global, then validates the result with Zod at startup; malformed fields surface named path errors before hooks load. The schema at `schemas/hero-schema.json` powers editor autocomplete via `$schema`.
 
 Configurable areas:
 
@@ -69,6 +94,28 @@ Configurable areas:
 - `guardrails.{blockEnvReads,blockForcePush}` — security guardrails, both default `true`.
 - `github.{repo,labels.{ready,inProgress,blocked}}` — issue board configuration, label scheme defaults to `hero:ready` / `hero:in-progress` / `hero:blocked`.
 - `sandcastle.{enabled,imageName,maxIterations,idleTimeoutSeconds,mountOpencodeAuth}` — night-shift orchestrator settings, disabled by default.
+
+### Local project overrides
+
+Create `<project>/.hero/config.jsonc` when a repo needs different behavior than your global defaults (for example: different models, repo labels, verify tuning, or Sandcastle settings).
+
+Minimal override example:
+
+```jsonc
+{
+  "$schema": "./node_modules/opencode-hero-workflow/schemas/hero-schema.json",
+  "models": {
+    "implementer": "github-copilot/claude-sonnet-4.5",
+    "reviewer": "github-copilot/claude-opus-4-7",
+    "planner": "github-copilot/claude-sonnet-4.5"
+  },
+  "verify": {
+    "debounceMs": 2000
+  }
+}
+```
+
+You can override any top-level schema key (`version`, `models`, `stack`, `verify`, `tokenBudget`, `guardrails`, `github`, `sandcastle`), including nested fields.
 
 ## Day-shift commands
 
@@ -117,14 +164,14 @@ Pre-flight checks before `/ralph` will run: the `sandcastle` binary must be on `
 
 ## Stack support
 
-Python is the supported stack today: `verify.sh` dispatches to `verify/python.sh`, which runs `ruff check`, `mypy` (when configured), and `pytest -x --tb=short`. Node verify exists only as a v2 stub. Auto-detection runs against `pyproject.toml`, `requirements.txt`, and `package.json`; you can override the choice by setting `HERO_STACK=python` in the environment or by pinning `stack` in `.hero/config.jsonc`. Unknown stacks soft-exit with a one-line override pointer rather than breaking your session.
+Python is the supported stack today: Hero's verify runner resolves `scripts/verify.sh` from the project when present, otherwise falls back to the bundled package script; the Python path runs `ruff check`, `mypy` (when configured), and `pytest -x --tb=short`. Node verify exists only as a v2 stub. Auto-detection runs against `pyproject.toml`, `requirements.txt`, and `package.json`; you can override the choice by setting `HERO_STACK=python` in the environment or by pinning `stack` in config. Unknown stacks soft-exit with a one-line override pointer rather than breaking your session.
 
 ## Hooks the plugin installs
 
 The plugin registers the following runtime hooks with OpenCode at startup:
 
 - Guardrails: blocks reads of `.env*` files and `git push --force` (configurable via `guardrails.*`).
-- Post-edit verify: spawns `verify.sh` async after `edit`/`write` tool calls, debounced per `verify.debounceMs`.
+- Post-edit verify: spawns Hero's verify runner async after `edit`/`write` tool calls, debounced per `verify.debounceMs`.
 - Token-budget toasts at the `tokenBudget.warnAt` and `tokenBudget.alarmAt` thresholds.
 - Compaction warning on `session.compacted`, plus minimal continuation-context injection (current PRD path and active issue) so the agent recovers gracefully if compaction does happen.
 - Startup version-drift toast when `.hero/.hero-version` lags the installed package version, with a one-line `init --migrate` fix.
@@ -134,11 +181,25 @@ The plugin registers the following runtime hooks with OpenCode at startup:
 - **Sandcastle**: no streaming UX during AFK runs (logs appear as chunks); no session resume; no per-iteration token usage when using the OpenCode agent provider. Tracked upstream.
 - **Token estimation**: heuristic (character-count divided by four), labelled "approximate" everywhere it surfaces.
 - **Windows**: not a target. Native Linux and macOS only.
-- **Public registry**: published to npm; git-tag install remains available for pinned-source installs.
+
+## Uninstall
+
+Run:
+
+```sh
+hero-init --uninstall
+```
+
+Uninstall is global-only and removes Hero-managed files from `~/.config/opencode` based on the install manifest, then removes Hero plugin and `hero:*` command entries from `~/.config/opencode/opencode.json`.
+
+It does not remove:
+
+- Files you modified after install (these are skipped for safety).
+- Project-local runtime state such as `<project>/.hero/state.json`.
 
 ## Upgrading
 
-Re-run `bunx github:arikru/opencode-hero-workflow#vX.Y.Z init --migrate` to pull in new defaults from a compatible release without overwriting files you have customised. The scaffolder uses a SHA-256 content-hash manifest to detect drift and refuses to clobber edited files; pass `--force` only when you have reviewed the diff and want to reset. Releases are now cut by pushing a `v*` tag, which triggers GitHub Actions to run `bun test` and then `npm publish`. Major-version bumps may require a manual migration step; consult the CHANGELOG for the target tag once one exists.
+Re-run `bunx opencode-hero-workflow@latest init --migrate` to pull in new defaults from a compatible release without overwriting files you have customised. The scaffolder uses a SHA-256 content-hash manifest to detect drift and refuses to clobber edited files; pass `--force` only when you have reviewed the diff and want to reset. If you prefer pinned installs, use an explicit package version (for example `bunx opencode-hero-workflow@0.2.0 init`). Major-version bumps may require a manual migration step; consult the CHANGELOG for the target version once one exists.
 
 ## Contributing
 

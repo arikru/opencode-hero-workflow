@@ -1,6 +1,6 @@
 {
   "name": "opencode-hero-workflow",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "type": "module",
   "description": "OpenCode workflow scaffold encoding Matt Pocock's Essential Skills for AI Coding.",
   "repository": {

@@ -1,0 +1,108 @@
+{
+  "scope": "hero-dogfood skill v1.0",
+  "mode": "dangerous",
+  "timestamp": "2026-04-27T12:00:00Z",
+  "findings": [
+    {
+      "severity": "blocker",
+      "phase": "happy-path",
+      "title": "Script exits with no output on missing required field",
+      "what_was_tried": "Ran the skill with a session JSON missing the 'scope' field",
+      "what_happened": "Python raised a KeyError and the process exited with code 1 and no user-facing message",
+      "what_was_expected": "A clear error message explaining which field is missing and how to fix it",
+      "evidence": [
+        {
+          "command": "python run_skill.py bad_input.json",
+          "output": "Traceback (most recent call last):\n  File \"run_skill.py\", line 42, in <module>\n    scope = data['scope']\nKeyError: 'scope'",
+          "file_refs": ["scripts/run_skill.py:42"]
+        }
+      ],
+      "suggested_next_step": "Wrap field access in try/except and emit a structured error message before sys.exit(1)"
+    },
+    {
+      "severity": "bug",
+      "phase": "adversarial",
+      "title": "Severity badge renders wrong color for 'bug' level",
+      "what_was_tried": "Injected a finding with severity='bug' into the report renderer",
+      "what_happened": "The badge showed the 'blocker' red color instead of orange",
+      "what_was_expected": "Orange badge for 'bug' severity findings",
+      "evidence": [
+        {
+          "command": "python scripts/render_report.py test_fixture.json /tmp/out.html && grep -A2 'severity-bug' /tmp/out.html",
+          "output": "  <span class=\"severity-badge severity-bug\" style=\"background:#e53e3e\">bug</span>",
+          "file_refs": ["assets/report-template.html:88", "scripts/render_report.py:134"]
+        },
+        {
+          "command": "grep 'severity-bug' assets/report-template.html",
+          "output": ".severity-bug { background: #e53e3e; }  /* wrong: should be #dd6b20 */",
+          "file_refs": ["assets/report-template.html:22"]
+        }
+      ],
+      "suggested_next_step": "Fix CSS: `.severity-bug { background: #dd6b20; }` (orange)"
+    },
+    {
+      "severity": "friction",
+      "phase": "source",
+      "title": "Template substitution fails when finding title contains a dollar sign",
+      "what_was_tried": "Used a finding title containing '$PATH' to test edge cases",
+      "what_happened": "string.Template raised ValueError: Invalid placeholder in string",
+      "what_was_expected": "Dollar signs in content should be escaped automatically before substitution",
+      "evidence": [
+        {
+          "command": "python scripts/render_report.py dollar_fixture.json /tmp/dollar_out.html",
+          "output": "ValueError: Invalid placeholder in string: line 1, col 47",
+          "file_refs": ["scripts/render_report.py:78"]
+        }
+      ],
+      "suggested_next_step": "Escape all user-supplied strings with `.replace('$', '$$')` before passing to Template.substitute()"
+    },
+    {
+      "severity": "nit",
+      "phase": "happy-path",
+      "title": "Report title hardcoded instead of using scope from JSON",
+      "what_was_tried": "Generated a report with scope='My Custom Skill'",
+      "what_happened": "The browser tab and <h1> always showed 'Dogfood Report' regardless of scope",
+      "what_was_expected": "Title and heading should reflect the actual scope value from the session JSON",
+      "evidence": [
+        {
+          "command": "grep '<title>' /tmp/test_report.html",
+          "output": "<title>Dogfood Report</title>",
+          "file_refs": ["assets/report-template.html:5"]
+        }
+      ],
+      "suggested_next_step": "Replace hardcoded title with `${scope}` placeholder in the template"
+    },
+    {
+      "severity": "bug",
+      "phase": "adversarial",
+      "title": "XSS: finding title not HTML-escaped in output",
+      "what_was_tried": "Set finding title to '<script>alert(1)</script>'",
+      "what_happened": "The script tag was rendered unescaped into the HTML, executing in the browser",
+      "what_was_expected": "All user content should be HTML-escaped before insertion",
+      "evidence": [
+        {
+          "command": "python scripts/render_report.py xss_fixture.json /tmp/xss_out.html && grep 'script' /tmp/xss_out.html | head -3",
+          "output": "<td><script>alert(1)</script></td>",
+          "file_refs": ["scripts/render_report.py:102"]
+        }
+      ],
+      "suggested_next_step": "Use html.escape() on all user-supplied string values before substitution"
+    },
+    {
+      "severity": "nit",
+      "phase": "source",
+      "title": "No shebang line in render_report.py",
+      "what_was_tried": "Tried to run the script directly: ./scripts/render_report.py",
+      "what_happened": "Permission denied / no interpreter specified",
+      "what_was_expected": "Script should have #!/usr/bin/env python3 and be executable",
+      "evidence": [
+        {
+          "command": "head -1 scripts/render_report.py",
+          "output": "import sys",
+          "file_refs": ["scripts/render_report.py:1"]
+        }
+      ],
+      "suggested_next_step": "Add `#!/usr/bin/env python3` as the first line and run `chmod +x scripts/render_report.py`"
+    }
+  ]
+}

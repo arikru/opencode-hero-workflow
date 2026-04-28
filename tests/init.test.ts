@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -25,6 +26,16 @@ const DEFAULT_MODELS = {
   planner: "github-copilot/claude-sonnet-4.5",
 };
 
+const HERO_COMMAND_KEYS = [
+  "hero:hero-grill",
+  "hero:hero-tdd-loop",
+  "hero:hero-kanban",
+  "hero:hero-improve-architecture",
+  "hero:hero-reviewer-standards",
+  "hero:hero-dogfood",
+  "hero:hero-to-prd",
+];
+
 function modelFlags(overrides: Partial<typeof DEFAULT_MODELS> = {}) {
   const merged = { ...DEFAULT_MODELS, ...overrides };
   return [
@@ -34,10 +45,19 @@ function modelFlags(overrides: Partial<typeof DEFAULT_MODELS> = {}) {
   ];
 }
 
-function runInit(targetDir: string, extraArgs: string[] = []) {
-  const result = spawnSync("bun", [INIT_SCRIPT, targetDir, ...modelFlags(), ...extraArgs], {
+function runInitRaw(
+  args: string[],
+  opts: { homeDir: string; cwd?: string } = { homeDir: process.env.HOME ?? "/tmp" },
+) {
+  return spawnSync("bun", [INIT_SCRIPT, ...args], {
     encoding: "utf8",
+    cwd: opts.cwd,
+    env: { ...process.env, HOME: opts.homeDir },
   });
+}
+
+function runInit(args: string[], opts: { homeDir: string; cwd?: string }) {
+  const result = runInitRaw(args, opts);
   if (result.status !== 0) {
     throw new Error(
       `init failed (status ${result.status}): ${result.stderr}\n${result.stdout}`,
@@ -46,348 +66,162 @@ function runInit(targetDir: string, extraArgs: string[] = []) {
   return result;
 }
 
-function runInitRaw(args: string[]) {
-  return spawnSync("bun", [INIT_SCRIPT, ...args], { encoding: "utf8" });
+function readJson(path: string) {
+  return JSON.parse(readFileSync(path, "utf8"));
 }
 
-describe("hero-init baseline scaffold", () => {
+describe("hero-init global mode (default)", () => {
   let tempDir: string;
+  let homeDir: string;
+  let projectDir: string;
 
   beforeEach(() => {
-    tempDir = mkdtempSync(join(tmpdir(), "hero-init-test-"));
+    tempDir = mkdtempSync(join(tmpdir(), "hero-init-global-"));
+    homeDir = join(tempDir, "home");
+    projectDir = join(tempDir, "project");
+    mkdirSync(homeDir, { recursive: true });
+    mkdirSync(projectDir, { recursive: true });
   });
 
   afterEach(() => {
     rmSync(tempDir, { recursive: true, force: true });
   });
 
-  test("creates baseline files in a fresh directory", () => {
-    runInit(tempDir);
+  test("installs under ~/.config/opencode and does not write project files", () => {
+    runInit([...modelFlags()], { homeDir, cwd: projectDir });
 
-    expect(existsSync(join(tempDir, ".hero", "config.jsonc"))).toBe(true);
-
-    const versionFile = join(tempDir, ".hero", ".hero-version");
-    expect(existsSync(versionFile)).toBe(true);
-    expect(readFileSync(versionFile, "utf8").trim()).toBe(PACKAGE_VERSION);
-
-    expect(existsSync(join(tempDir, ".opencode", "skills"))).toBe(true);
-    expect(existsSync(join(tempDir, ".opencode", "commands"))).toBe(true);
+    const globalRoot = join(homeDir, ".config", "opencode");
+    expect(existsSync(join(globalRoot, "hero", "config.jsonc"))).toBe(true);
+    expect(existsSync(join(globalRoot, "skills", "hero-grill", "SKILL.md"))).toBe(true);
+    expect(existsSync(join(projectDir, ".hero"))).toBe(false);
+    expect(existsSync(join(projectDir, ".opencode"))).toBe(false);
+    expect(existsSync(join(projectDir, "opencode.json"))).toBe(false);
   });
 
-  test("creates opencode.json with default_agent plan and plugin ref", () => {
-    runInit(tempDir);
+  test("writes hero config with prompted models and tracks manifest in hero/.manifest.json", () => {
+    runInit([...modelFlags()], { homeDir, cwd: projectDir });
 
-    const opencodePath = join(tempDir, "opencode.json");
-    expect(existsSync(opencodePath)).toBe(true);
+    const globalRoot = join(homeDir, ".config", "opencode");
+    const config = readJson(join(globalRoot, "hero", "config.jsonc"));
+    expect(config.version).toBe(PACKAGE_VERSION);
+    expect(config.models).toEqual(DEFAULT_MODELS);
 
-    const parsed = JSON.parse(readFileSync(opencodePath, "utf8"));
-    expect(parsed.default_agent).toBe("plan");
+    const manifest = readJson(join(globalRoot, "hero", ".manifest.json"));
+    expect(manifest.version).toBe(PACKAGE_VERSION);
+    expect(manifest.files["hero/config.jsonc"]).toMatch(/^[a-f0-9]{64}$/);
+    expect(manifest.files["skills/hero-grill/SKILL.md"]).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  test("registers hero:* commands in opencode.json command map and adds plugin", () => {
+    runInit([...modelFlags()], { homeDir, cwd: projectDir });
+
+    const globalRoot = join(homeDir, ".config", "opencode");
+    const parsed = readJson(join(globalRoot, "opencode.json"));
+
     expect(Array.isArray(parsed.plugin)).toBe(true);
     expect(parsed.plugin).toContain(PLUGIN_REF);
+    expect(parsed.default_agent).toBeUndefined();
+    for (const key of HERO_COMMAND_KEYS) {
+      expect(parsed.command[key]).toEqual(expect.any(String));
+    }
+
+    expect(existsSync(join(globalRoot, ".opencode", "commands"))).toBe(false);
+    expect(existsSync(join(globalRoot, ".opencode", "commands", "grill.md"))).toBe(false);
   });
 
-  test("merges into an existing opencode.json without dropping unrelated keys", () => {
-    const opencodePath = join(tempDir, "opencode.json");
+  test("merges opencode.json without clobbering unrelated keys or default_agent", () => {
+    const globalRoot = join(homeDir, ".config", "opencode");
+    const opencodePath = join(globalRoot, "opencode.json");
+    mkdirSync(globalRoot, { recursive: true });
     writeFileSync(
       opencodePath,
-      JSON.stringify({ theme: "tokyonight" }, null, 2),
+      JSON.stringify(
+        {
+          theme: "tokyonight",
+          default_agent: "code",
+          command: { "custom:hello": "say hi" },
+          plugin: ["other-plugin"],
+        },
+        null,
+        2,
+      ),
       "utf8",
     );
 
-    runInit(tempDir);
+    runInit([...modelFlags()], { homeDir, cwd: projectDir });
 
-    const parsed = JSON.parse(readFileSync(opencodePath, "utf8"));
+    const parsed = readJson(opencodePath);
     expect(parsed.theme).toBe("tokyonight");
-    expect(parsed.default_agent).toBe("plan");
+    expect(parsed.default_agent).toBe("code");
+    expect(parsed.command["custom:hello"]).toBe("say hi");
+    for (const key of HERO_COMMAND_KEYS) {
+      expect(parsed.command[key]).toEqual(expect.any(String));
+    }
+    expect(parsed.plugin).toContain("other-plugin");
     expect(parsed.plugin).toContain(PLUGIN_REF);
   });
+
+  test("is idempotent and refuses to overwrite user-edited global files", () => {
+    runInit([...modelFlags()], { homeDir, cwd: projectDir });
+
+    const globalRoot = join(homeDir, ".config", "opencode");
+    const configPath = join(globalRoot, "hero", "config.jsonc");
+    const beforeMtime = statSync(configPath).mtimeMs;
+
+    const second = runInit([...modelFlags()], { homeDir, cwd: projectDir });
+    expect(statSync(configPath).mtimeMs).toBe(beforeMtime);
+    expect(second.stdout).not.toMatch(/wrote hero\/config\.jsonc/);
+
+    const customised = readJson(configPath);
+    customised.models.implementer = "user-pinned/some-model";
+    writeFileSync(configPath, `${JSON.stringify(customised, null, 2)}\n`, "utf8");
+
+    const conflict = runInitRaw([...modelFlags()], { homeDir, cwd: projectDir });
+    expect(conflict.status).not.toBe(0);
+    expect(conflict.stderr).toContain("hero/config.jsonc");
+    expect(conflict.stderr).toContain("--force");
+  });
 });
 
-describe("hero-init model-role prompts", () => {
+describe("hero-init local mode (--local)", () => {
   let tempDir: string;
+  let homeDir: string;
+  let projectDir: string;
 
   beforeEach(() => {
-    tempDir = mkdtempSync(join(tmpdir(), "hero-init-models-"));
+    tempDir = mkdtempSync(join(tmpdir(), "hero-init-local-"));
+    homeDir = join(tempDir, "home");
+    projectDir = join(tempDir, "project");
+    mkdirSync(homeDir, { recursive: true });
+    mkdirSync(projectDir, { recursive: true });
   });
 
   afterEach(() => {
     rmSync(tempDir, { recursive: true, force: true });
   });
 
-  test("writes model values from flags into .hero/config.jsonc and preserves version", () => {
-    runInit(tempDir);
+  test("preserves prior project-local scaffold behavior when --local is passed", () => {
+    runInit([projectDir, "--local", ...modelFlags()], { homeDir });
 
-    const configPath = join(tempDir, ".hero", "config.jsonc");
-    const parsed = JSON.parse(readFileSync(configPath, "utf8"));
-
-    expect(parsed.version).toBe(PACKAGE_VERSION);
-    expect(parsed.models).toEqual(DEFAULT_MODELS);
-  });
-
-  test("uses exactly implementer, reviewer, planner under models", () => {
-    runInit(tempDir);
-
-    const parsed = JSON.parse(
-      readFileSync(join(tempDir, ".hero", "config.jsonc"), "utf8"),
+    expect(existsSync(join(projectDir, ".hero", "config.jsonc"))).toBe(true);
+    expect(existsSync(join(projectDir, ".opencode", "skills", "hero-grill", "SKILL.md"))).toBe(
+      true,
     );
+    expect(existsSync(join(projectDir, ".opencode", "commands", "grill.md"))).toBe(true);
 
-    expect(Object.keys(parsed.models).sort()).toEqual([
-      "implementer",
-      "planner",
-      "reviewer",
-    ]);
+    const parsed = readJson(join(projectDir, "opencode.json"));
+    expect(parsed.default_agent).toBe("plan");
+    expect(parsed.plugin).toContain(PLUGIN_REF);
+    expect(parsed.command).toBeUndefined();
   });
 
-  test("fails non-zero when a model flag is empty", () => {
-    const result = runInitRaw([
-      tempDir,
-      "--implementer=foo/bar",
-      "--reviewer=",
-      "--planner=baz/qux",
-    ]);
-    expect(result.status).not.toBe(0);
-    expect(result.stderr).toContain("reviewer");
-  });
+  test("continues to track local manifest at .hero/.manifest.json", () => {
+    runInit([projectDir, "--local", ...modelFlags()], { homeDir });
 
-  test("falls back to default models when no flags and stdin is not a TTY (e.g. bunx)", () => {
-    // spawnSync with default stdio gives the child a piped (non-TTY) stdin,
-    // matching how `bunx ... init` invokes us. This must succeed and apply the
-    // example model defaults rather than erroring out.
-    const result = spawnSync("bun", [INIT_SCRIPT, tempDir], { encoding: "utf8" });
-    expect(result.status).toBe(0);
-    expect(result.stdout).toContain("using default");
-
-    const parsed = JSON.parse(
-      readFileSync(join(tempDir, ".hero", "config.jsonc"), "utf8"),
-    );
-    expect(parsed.models).toEqual(DEFAULT_MODELS);
-  });
-});
-
-describe("hero-init idempotency and conflict detection", () => {
-  let tempDir: string;
-
-  beforeEach(() => {
-    tempDir = mkdtempSync(join(tmpdir(), "hero-init-idem-"));
-  });
-
-  afterEach(() => {
-    rmSync(tempDir, { recursive: true, force: true });
-  });
-
-  test("writes a manifest covering managed files but not opencode.json", () => {
-    runInit(tempDir);
-
-    const manifestPath = join(tempDir, ".hero", ".manifest.json");
-    expect(existsSync(manifestPath)).toBe(true);
-
-    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    const manifest = readJson(join(projectDir, ".hero", ".manifest.json"));
     expect(manifest.version).toBe(PACKAGE_VERSION);
-    expect(typeof manifest.files).toBe("object");
     expect(manifest.files[".hero/config.jsonc"]).toMatch(/^[a-f0-9]{64}$/);
-    expect(manifest.files[".hero/.hero-version"]).toMatch(/^[a-f0-9]{64}$/);
+    expect(manifest.files[".opencode/commands/grill.md"]).toMatch(/^[a-f0-9]{64}$/);
     expect(manifest.files["opencode.json"]).toBeUndefined();
-  });
-
-  test("second run on a clean scaffold does not rewrite managed files", () => {
-    runInit(tempDir);
-
-    const configPath = join(tempDir, ".hero", "config.jsonc");
-    const versionPath = join(tempDir, ".hero", ".hero-version");
-    const beforeConfig = statSync(configPath).mtimeMs;
-    const beforeVersion = statSync(versionPath).mtimeMs;
-
-    const result = runInit(tempDir);
-
-    expect(statSync(configPath).mtimeMs).toBe(beforeConfig);
-    expect(statSync(versionPath).mtimeMs).toBe(beforeVersion);
-    expect(result.stdout).not.toMatch(/wrote \.hero\/config\.jsonc/);
-    expect(result.stdout).not.toMatch(/wrote \.hero\/\.hero-version/);
-  });
-
-  test("refuses to overwrite a user-modified .hero/config.jsonc without --force", () => {
-    runInit(tempDir);
-
-    const configPath = join(tempDir, ".hero", "config.jsonc");
-    const customised = JSON.parse(readFileSync(configPath, "utf8"));
-    customised.models.implementer = "user-pinned/some-model";
-    writeFileSync(configPath, `${JSON.stringify(customised, null, 2)}\n`, "utf8");
-
-    const result = runInitRaw([tempDir, ...modelFlags()]);
-    expect(result.status).not.toBe(0);
-    expect(result.stderr).toContain(".hero/config.jsonc");
-    expect(result.stderr).toContain("--force");
-
-    const onDisk = JSON.parse(readFileSync(configPath, "utf8"));
-    expect(onDisk.models.implementer).toBe("user-pinned/some-model");
-  });
-
-  test("--force overwrites user modifications", () => {
-    runInit(tempDir);
-
-    const configPath = join(tempDir, ".hero", "config.jsonc");
-    const customised = JSON.parse(readFileSync(configPath, "utf8"));
-    customised.models.implementer = "user-pinned/some-model";
-    writeFileSync(configPath, `${JSON.stringify(customised, null, 2)}\n`, "utf8");
-
-    runInit(tempDir, ["--force"]);
-
-    const onDisk = JSON.parse(readFileSync(configPath, "utf8"));
-    expect(onDisk.models.implementer).toBe(DEFAULT_MODELS.implementer);
-  });
-
-  test("--migrate succeeds against a manifest with the current major", () => {
-    runInit(tempDir);
-
-    const manifestPath = join(tempDir, ".hero", ".manifest.json");
-    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-    manifest.version = "0.0.1";
-    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
-
-    const result = runInitRaw([tempDir, ...modelFlags(), "--migrate"]);
-    expect(result.status).toBe(0);
-
-    const updated = JSON.parse(readFileSync(manifestPath, "utf8"));
-    expect(updated.version).toBe(PACKAGE_VERSION);
-  });
-
-  test("--migrate refuses against a fabricated v999 manifest", () => {
-    runInit(tempDir);
-
-    const manifestPath = join(tempDir, ".hero", ".manifest.json");
-    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-    manifest.version = "999.0.0";
-    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
-
-    const result = runInitRaw([tempDir, ...modelFlags(), "--migrate"]);
-    expect(result.status).not.toBe(0);
-    expect(result.stderr).toContain("Major version mismatch");
-  });
-
-  test("a manifest entry whose file was deleted by the user is dropped, not recreated", () => {
-    runInit(tempDir);
-
-    const gitkeep = join(tempDir, ".opencode", "skills", ".gitkeep");
-    expect(existsSync(gitkeep)).toBe(true);
-    rmSync(gitkeep);
-
-    runInit(tempDir);
-
-    expect(existsSync(gitkeep)).toBe(false);
-    const manifest = JSON.parse(
-      readFileSync(join(tempDir, ".hero", ".manifest.json"), "utf8"),
-    );
-    expect(manifest.files[".opencode/skills/.gitkeep"]).toBeUndefined();
-  });
-});
-
-describe("hero-init .hero/state.json placeholder", () => {
-  let tempDir: string;
-
-  beforeEach(() => {
-    tempDir = mkdtempSync(join(tmpdir(), "hero-init-state-"));
-  });
-
-  afterEach(() => {
-    rmSync(tempDir, { recursive: true, force: true });
-  });
-
-  test("scaffolds an empty .hero/state.json on a fresh init", () => {
-    runInit(tempDir);
-
-    const statePath = join(tempDir, ".hero", "state.json");
-    expect(existsSync(statePath)).toBe(true);
-
-    const parsed = JSON.parse(readFileSync(statePath, "utf8"));
-    expect(parsed).toEqual({});
-  });
-
-  test("manifest tracks .hero/state.json after init", () => {
-    runInit(tempDir);
-
-    const manifestPath = join(tempDir, ".hero", ".manifest.json");
-    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-    expect(manifest.files[".hero/state.json"]).toMatch(/^[a-f0-9]{64}$/);
-  });
-
-  test("refuses to overwrite a user-modified .hero/state.json without --force", () => {
-    runInit(tempDir);
-
-    const statePath = join(tempDir, ".hero", "state.json");
-    writeFileSync(statePath, `${JSON.stringify({ activeIssueId: "42" })}\n`, "utf8");
-
-    const result = runInitRaw([tempDir, ...modelFlags()]);
-    expect(result.status).not.toBe(0);
-    expect(result.stderr).toContain(".hero/state.json");
-    expect(result.stderr).toContain("--force");
-
-    const onDisk = JSON.parse(readFileSync(statePath, "utf8"));
-    expect(onDisk).toEqual({ activeIssueId: "42" });
-  });
-
-  test("--force overwrites a user-modified .hero/state.json back to empty", () => {
-    runInit(tempDir);
-
-    const statePath = join(tempDir, ".hero", "state.json");
-    writeFileSync(statePath, `${JSON.stringify({ activeIssueId: "42" })}\n`, "utf8");
-
-    runInit(tempDir, ["--force"]);
-
-    const onDisk = JSON.parse(readFileSync(statePath, "utf8"));
-    expect(onDisk).toEqual({});
-  });
-});
-
-describe("hero-init sandcastle scaffolding", () => {
-  let tempDir: string;
-
-  beforeEach(() => {
-    tempDir = mkdtempSync(join(tmpdir(), "hero-init-sandcastle-"));
-  });
-
-  afterEach(() => {
-    rmSync(tempDir, { recursive: true, force: true });
-  });
-
-  test("does not scaffold .sandcastle/ when sandcastle is disabled by default", () => {
-    runInit(tempDir);
-
-    expect(existsSync(join(tempDir, ".sandcastle"))).toBe(false);
-    expect(existsSync(join(tempDir, ".sandcastle", "package.json"))).toBe(false);
-  });
-
-  test("scaffolds .sandcastle/package.json when --sandcastle-enabled is passed", () => {
-    runInit(tempDir, ["--sandcastle-enabled"]);
-
-    const pkgPath = join(tempDir, ".sandcastle", "package.json");
-    expect(existsSync(pkgPath)).toBe(true);
-
-    const parsed = JSON.parse(readFileSync(pkgPath, "utf8"));
-    expect(parsed.dependencies).toBeDefined();
-    expect(parsed.dependencies.sandcastle).toBeDefined();
-
-    const configPath = join(tempDir, ".hero", "config.jsonc");
-    const config = JSON.parse(readFileSync(configPath, "utf8"));
-    expect(config.sandcastle).toBeDefined();
-    expect(config.sandcastle.enabled).toBe(true);
-  });
-
-  test("retains .sandcastle/package.json on a re-run without the flag if config still has enabled: true", () => {
-    runInit(tempDir, ["--sandcastle-enabled"]);
-
-    const pkgPath = join(tempDir, ".sandcastle", "package.json");
-    expect(existsSync(pkgPath)).toBe(true);
-
-    runInit(tempDir);
-
-    expect(existsSync(pkgPath)).toBe(true);
-  });
-
-  test("manifest covers .sandcastle/package.json when sandcastle is enabled", () => {
-    runInit(tempDir, ["--sandcastle-enabled"]);
-
-    const manifestPath = join(tempDir, ".hero", ".manifest.json");
-    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-    expect(manifest.files[".sandcastle/package.json"]).toMatch(/^[a-f0-9]{64}$/);
   });
 });

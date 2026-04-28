@@ -9,6 +9,7 @@
 
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createInterface } from "node:readline/promises";
@@ -16,7 +17,8 @@ import { createHash } from "node:crypto";
 
 const PACKAGE_ROOT = resolve(fileURLToPath(import.meta.url), "..", "..");
 const TEMPLATES_DIR = join(PACKAGE_ROOT, "templates");
-const MANIFEST_REL = ".hero/.manifest.json";
+const LOCAL_MANIFEST_REL = ".hero/.manifest.json";
+const GLOBAL_MANIFEST_REL = "hero/.manifest.json";
 
 // Pinned git tag — the literal pin is the deliverable. No floating branch refs.
 const PLUGIN_REF = "opencode-hero-workflow";
@@ -26,6 +28,16 @@ const MODEL_ROLES = /** @type {const} */ ([
   { key: "reviewer", label: "Reviewer", example: "github-copilot/claude-opus-4-7" },
   { key: "planner", label: "Planner", example: "github-copilot/claude-sonnet-4.5" },
 ]);
+
+const GLOBAL_HERO_COMMANDS = /** @type {const} */ ({
+  "hero:hero-grill": "Load the `hero-grill` skill and start an alignment session on the user-provided topic.",
+  "hero:hero-tdd-loop": "Load the `hero-tdd-loop` skill and run a red-green-refactor loop for the selected GitHub issue.",
+  "hero:hero-kanban": "Load the `hero-kanban` skill and break the current plan or PRD into vertical-slice GitHub issues.",
+  "hero:hero-improve-architecture": "Load the `hero-improve-architecture` skill and scan the codebase for deepening opportunities.",
+  "hero:hero-reviewer-standards": "Load the `hero-reviewer-standards` skill and audit the diff with push-style review standards.",
+  "hero:hero-dogfood": "Load the `hero-dogfood` skill and run a happy-path to adversarial dogfooding session.",
+  "hero:hero-to-prd": "Load the `hero-to-prd` skill and turn the current context into a PRD GitHub issue.",
+});
 
 async function readPackageVersion() {
   const pkgPath = join(PACKAGE_ROOT, "package.json");
@@ -65,8 +77,8 @@ function majorOf(version) {
   return m ? Number(m[1]) : NaN;
 }
 
-async function readManifest(targetDir) {
-  const path = join(targetDir, MANIFEST_REL);
+async function readManifest(targetDir, manifestRelPath) {
+  const path = join(targetDir, manifestRelPath);
   if (!existsSync(path)) {
     return { version: null, files: /** @type {Record<string, string>} */ ({}) };
   }
@@ -81,13 +93,13 @@ async function readManifest(targetDir) {
     return { version, files };
   } catch (err) {
     throw new Error(
-      `${MANIFEST_REL} exists but is not valid JSON: ${err instanceof Error ? err.message : String(err)}`,
+      `${manifestRelPath} exists but is not valid JSON: ${err instanceof Error ? err.message : String(err)}`,
     );
   }
 }
 
-async function writeManifest(targetDir, manifest) {
-  const path = join(targetDir, MANIFEST_REL);
+async function writeManifest(targetDir, manifestRelPath, manifest) {
+  const path = join(targetDir, manifestRelPath);
   await mkdir(dirname(path), { recursive: true });
   const sortedFiles = /** @type {Record<string, string>} */ ({});
   for (const k of Object.keys(manifest.files).sort()) {
@@ -138,7 +150,7 @@ async function writeManagedFile(targetDir, relPath, buf) {
   await writeFile(dest, buf);
 }
 
-async function patchOpencodeJson(targetDir) {
+async function patchOpencodeJson(targetDir, installMode) {
   const path = join(targetDir, "opencode.json");
   /** @type {Record<string, unknown>} */
   let config = {};
@@ -159,7 +171,9 @@ async function patchOpencodeJson(targetDir) {
   }
 
   const before = existed ? JSON.stringify(config) : null;
-  config.default_agent = "plan";
+  if (installMode === "local") {
+    config.default_agent = "plan";
+  }
 
   /** @type {string[]} */
   let plugins;
@@ -176,6 +190,21 @@ async function patchOpencodeJson(targetDir) {
   }
   config.plugin = plugins;
 
+  if (installMode === "global") {
+    const existingCommand = config.command;
+    /** @type {Record<string, unknown>} */
+    const commands =
+      existingCommand && typeof existingCommand === "object" && !Array.isArray(existingCommand)
+        ? { ...existingCommand }
+        : {};
+    for (const [key, value] of Object.entries(GLOBAL_HERO_COMMANDS)) {
+      if (!(key in commands)) {
+        commands[key] = value;
+      }
+    }
+    config.command = commands;
+  }
+
   const after = JSON.stringify(config);
   if (existed && before === after) {
     return;
@@ -189,7 +218,7 @@ function parseFlags(argv) {
   const flags = {};
   /** @type {string[]} */
   const positional = [];
-  const booleanFlags = new Set(["force", "migrate", "sandcastle-enabled"]);
+  const booleanFlags = new Set(["force", "migrate", "sandcastle-enabled", "local"]);
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg.startsWith("--")) {
@@ -263,8 +292,8 @@ function stripJsonComments(src) {
 // sandcastle.enabled flag in the generated config to true. When false/undefined, do not
 // flip an existing user-set flag back to false — Zod schema defaults supply the rest of
 // the sandcastle block at runtime, so we only need to write the enabled key.
-async function buildHeroConfigContent(targetDir, models, version, mode, sandcastleEnabled) {
-  const path = join(targetDir, ".hero", "config.jsonc");
+async function buildHeroConfigContent(targetDir, configRelPath, models, version, mode, sandcastleEnabled) {
+  const path = join(targetDir, configRelPath);
   /** @type {Record<string, unknown>} */
   let config = {};
 
@@ -279,11 +308,11 @@ async function buildHeroConfigContent(targetDir, models, version, mode, sandcast
       config = stripped.length === 0 ? {} : JSON.parse(stripped);
     } catch (err) {
       throw new Error(
-        `.hero/config.jsonc exists but is not valid JSON: ${err instanceof Error ? err.message : String(err)}`,
+        `${configRelPath} exists but is not valid JSON: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
     if (config === null || typeof config !== "object" || Array.isArray(config)) {
-      throw new Error(".hero/config.jsonc must contain a JSON object at the root");
+      throw new Error(`${configRelPath} must contain a JSON object at the root`);
     }
   }
 
@@ -335,14 +364,18 @@ function isTemplateAllowed(relPath, sandcastleEnabled) {
   return true;
 }
 
-async function buildManagedFileSet(targetDir, models, version, mode, sandcastleFlag) {
+async function buildManagedFileSet(targetDir, installMode, models, version, mode, sandcastleFlag) {
   /** @type {Array<{ relPath: string, contents: Buffer | string }>} */
   const files = [];
+
+  const configRelPath = installMode === "global" ? join("hero", "config.jsonc") : join(".hero", "config.jsonc");
+  const versionRelPath = installMode === "global" ? join("hero", ".hero-version") : join(".hero", ".hero-version");
 
   // Build the canonical .hero/config.jsonc first so we can read sandcastle.enabled out
   // of it; the value drives whether templates/.sandcastle/** is included in this run.
   const configContent = await buildHeroConfigContent(
     targetDir,
+    configRelPath,
     models,
     version,
     mode,
@@ -355,13 +388,29 @@ async function buildManagedFileSet(targetDir, models, version, mode, sandcastleF
       const rel = relative(TEMPLATES_DIR, src);
       if (rel === join(".hero", "config.jsonc")) continue;
       if (!isTemplateAllowed(rel, sandcastleEnabled)) continue;
+
+      if (installMode === "global") {
+        if (rel.startsWith(join(".opencode", "commands") + sep) || rel === join(".opencode", "commands")) {
+          continue;
+        }
+      }
+
+      let relPath = rel;
+      if (installMode === "global") {
+        if (rel.startsWith(join(".opencode", "skills") + sep)) {
+          relPath = join("skills", rel.slice(join(".opencode", "skills").length + 1));
+        } else if (rel.startsWith(join(".hero") + sep)) {
+          relPath = join("hero", rel.slice(join(".hero").length + 1));
+        }
+      }
+
       const buf = await readFile(src);
-      files.push({ relPath: rel, contents: buf });
+      files.push({ relPath, contents: buf });
     }
   }
 
-  files.push({ relPath: join(".hero", ".hero-version"), contents: `${version}\n` });
-  files.push({ relPath: join(".hero", "config.jsonc"), contents: configContent });
+  files.push({ relPath: versionRelPath, contents: `${version}\n` });
+  files.push({ relPath: configRelPath, contents: configContent });
 
   return files;
 }
@@ -386,8 +435,18 @@ function reconcileMissingManagedFiles(targetDir, manifest, expectedRelPaths) {
 
 async function main() {
   const { flags, positional } = parseFlags(process.argv.slice(2));
+  const explicitLocal = flags.local === true;
+  const hasPositionalTarget = positional.length > 0;
+  const installMode = explicitLocal ? "local" : "global";
+
+  if (hasPositionalTarget && !explicitLocal) {
+    console.log("hero-init: ignoring positional target path without --local; installing globally under ~/.config/opencode.");
+  }
+
   const targetArg = positional[0] ?? process.cwd();
-  const targetDir = resolve(targetArg);
+  const targetDir =
+    installMode === "global" ? resolve(homedir(), ".config", "opencode") : resolve(targetArg);
+  const manifestRelPath = installMode === "global" ? GLOBAL_MANIFEST_REL : LOCAL_MANIFEST_REL;
 
   const force = flags.force === true;
   const migrate = flags.migrate === true;
@@ -402,7 +461,7 @@ async function main() {
   await mkdir(targetDir, { recursive: true });
 
   const version = await readPackageVersion();
-  const manifest = await readManifest(targetDir);
+  const manifest = await readManifest(targetDir, manifestRelPath);
 
   if (
     manifest.version !== null &&
@@ -415,7 +474,7 @@ async function main() {
     process.exit(1);
   }
 
-  const managed = await buildManagedFileSet(targetDir, models, version, mode, sandcastleFlag);
+  const managed = await buildManagedFileSet(targetDir, installMode, models, version, mode, sandcastleFlag);
   const userDeleted = reconcileMissingManagedFiles(
     targetDir,
     manifest,
@@ -448,9 +507,9 @@ async function main() {
   }
 
   manifest.version = version;
-  await writeManifest(targetDir, manifest);
+  await writeManifest(targetDir, manifestRelPath, manifest);
 
-  await patchOpencodeJson(targetDir);
+  await patchOpencodeJson(targetDir, installMode);
 
   console.log(`hero-init done (version ${version})`);
 }

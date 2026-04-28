@@ -20,35 +20,42 @@ bunx opencode-hero-workflow@latest init
 
 ### Claude Code
 
-Hero skills are also available as a Claude Code plugin. This gives you the skills (`/hero:grill-me`, `/hero:tdd-loop`, etc.) but not the runtime hooks, verify loop, or token-budget toasts — those are OpenCode-only.
+Hero is also distributed as a Claude Code plugin via a marketplace manifest at the repo root. You get the slash commands (`/hero:grill`, `/hero:tdd`, etc.) and underlying skills, but not the runtime hooks, verify loop, guardrails, or token-budget toasts — those are OpenCode-only.
 
-**Install per session:**
+**Install (canonical):**
+
+```sh
+claude plugin marketplace add arikru/opencode-hero-workflow
+claude plugin install hero@opencode-hero-workflow
+```
+
+The first command registers the marketplace by cloning `arikru/opencode-hero-workflow` into Claude Code's plugin cache; the second installs the `hero` plugin and writes `enabledPlugins` to your user `settings.json` automatically. Update with `claude plugin update hero@opencode-hero-workflow`; remove with `claude plugin uninstall hero@opencode-hero-workflow` (and `claude plugin marketplace remove opencode-hero-workflow`).
+
+**Try without installing (per session):**
 
 ```sh
 claude --plugin-dir /path/to/opencode-hero-workflow/.opencode
 ```
 
-**Install per project (via git):**
+Useful for hacking on the plugin locally without touching global state.
 
-Add to your project's `.claude/settings.json`:
+**Available commands in Claude Code:**
 
-```json
-{
-  "plugins": ["gh:arikru/opencode-hero-workflow/.opencode"]
-}
-```
-
-**Available skills:**
-
-| Skill | Invocation |
+| Command | What it does |
 | --- | --- |
-| Grill / alignment | `/hero:grill-me` |
-| TDD loop | `/hero:tdd-loop` |
-| Kanban breakdown | `/hero:kanban` |
-| Architecture scan | `/hero:improve-architecture` |
-| Code review | `/hero:reviewer-standards` |
-| Dogfood | `/hero:dogfood` |
-| PRD | `/hero:to-prd` |
+| `/hero:grill <topic>` | Alignment interview that resolves every branch of a plan or design decision tree. |
+| `/hero:dogfood [seed]` | Exercise a feature happy-path → adversarial → source read → HTML report. |
+| `/hero:prd` | Synthesise the current context into a PRD GitHub issue. |
+| `/hero:kanban [issue]` | Break a plan or PRD into vertical-slice GitHub issues. |
+| `/hero:pick-task` | Select the highest-priority unblocked `hero:ready` issue. |
+| `/hero:tdd <issue>` | Drive red-green-refactor on the chosen issue. |
+| `/hero:review <pr-or-branch>` | Fresh-context audit using push-style reviewer standards. |
+| `/hero:architecture-scan` | Propose deep-module consolidations for shallow clusters. |
+| `/hero:context-status` | Approximate token usage and smart-zone reminder. |
+| `/hero:mark-issue-done` | Close the active issue with a completion comment. |
+| `/hero:verify` | Run the project's verify suite and interpret results. |
+
+`/hero:ralph` is bundled but Sandcastle-dependent and intended for OpenCode; it will not run useful work from a Claude Code session.
 
 ---
 

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "opencode-hero-workflow",
+  "description": "Hero workflow skills and commands for Claude Code: TDD loop, grilling, kanban, architecture review, dogfood, PRD, and more.",
+  "owner": {
+    "name": "arikru",
+    "url": "https://github.com/arikru"
+  },
+  "plugins": [
+    {
+      "name": "hero",
+      "description": "Hero workflow skills and commands. Provides /hero:grill, /hero:tdd, /hero:kanban, /hero:review, /hero:dogfood, /hero:prd, /hero:architecture-scan and related slash commands. Runtime hooks (verify loop, token-budget toasts, guardrails) are OpenCode-only.",
+      "category": "development",
+      "source": "./.opencode",
+      "homepage": "https://github.com/arikru/opencode-hero-workflow"
+    }
+  ]
+}
